@@ -5,6 +5,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langchain.chat_models import init_chat_model
 import os
+import json
 from dotenv import load_dotenv
 import json
 from langchain_tavily import TavilySearch
@@ -143,6 +144,67 @@ def convert_message_to_dict(message):
 
     return final_dict
 
+def sanitize_history(messages: list) -> list:
+    """
+    Pulisce e sanifica la cronologia dei messaggi per renderla conforme alle API OpenAI.
+    - Rimuove i duplicati esatti.
+    - Rimuove i messaggi 'tool' orfani (non preceduti da una 'tool_calls').
+    - Unisce i messaggi consecutivi dello stesso ruolo (es. due 'user' di fila).
+    """
+    if not messages:
+        return []
+
+    # 1. Converti tutto in dizionari e deduplica usando JSON canonico
+    unique_messages = []
+    seen = set()
+    for msg in messages:
+        try:
+            msg_dict = convert_message_to_dict(msg)
+            # Serializza in una stringa JSON canonica per una deduplicazione robusta
+            # default=str gestisce tipi non serializzabili come oggetti errore o Pydantic models
+            canonical_repr = json.dumps(msg_dict, sort_keys=True, default=str)
+            if canonical_repr not in seen:
+                seen.add(canonical_repr)
+                unique_messages.append(msg_dict) # Ora msg_dict è già un dizionario pulito
+        except Exception as e:
+            print(f"[SANITIZE] Ignorato messaggio non processabile durante la deduplicazione: {e}")
+
+    # 2. Valida la sequenza dei tool_calls
+    valid_sequence = []
+    for msg in unique_messages:
+        if msg.get('role') == 'tool':
+            if (valid_sequence and 
+                valid_sequence[-1].get('role') == 'assistant' and 
+                valid_sequence[-1].get('tool_calls')):
+                valid_sequence.append(msg)
+            else:
+                print(f"[SANITIZE] Ignorato messaggio 'tool' orfano: {str(msg.get('content', ''))[:100]}")
+        else:
+            valid_sequence.append(msg)
+
+    # 3. Unisci messaggi consecutivi dello stesso ruolo (eccetto 'tool')
+    if not valid_sequence:
+        return []
+        
+    merged_messages = [valid_sequence[0]]
+    for i in range(1, len(valid_sequence)):
+        current_msg = valid_sequence[i]
+        last_msg = merged_messages[-1]
+        
+        # Unisci se i ruoli sono identici e non sono 'tool' o 'assistant' con tool_calls
+        if (current_msg.get('role') == last_msg.get('role') and 
+            current_msg.get('role') != 'tool' and 
+            not last_msg.get('tool_calls')):
+            
+            content1 = str(last_msg.get('content', '') or '')
+            content2 = str(current_msg.get('content', '') or '')
+            merged_messages[-1]['content'] = f"{content1}\n{content2}".strip()
+            print(f"[SANITIZE] Messaggi consecutivi uniti per il ruolo: {current_msg.get('role')}")
+        else:
+            merged_messages.append(current_msg)
+            
+    return merged_messages
+
 def chatbot(state: State) -> State:
     try:
         print("\n[CHATBOT] Inizio elaborazione stato...")
@@ -151,55 +213,9 @@ def chatbot(state: State) -> State:
         new_state["_current_node"] = "chatbot"
         
         messages = new_state.get("messages", [])
-        if not messages:
-            print("[CHATBOT] Nessun messaggio trovato.")
-            return {"messages": [], "_current_node": "chatbot"}
 
-        # --- Inizio Blocco di Validazione Unificato ---
-        validated_messages = []
-        role_mapping = {'human': 'user', 'ai': 'assistant'}
-
-        for i, msg in enumerate(messages):
-            try:
-                msg_dict = convert_message_to_dict(msg)
-                if not isinstance(msg_dict, dict):
-                    print(f"[WARNING] Ignorato messaggio #{i}: non è un dizionario.")
-                    continue
-
-                # Normalizza ruolo
-                role = str(msg_dict.get('role', '')).lower()
-                normalized_role = role_mapping.get(role, role)
-                
-                if normalized_role not in ['user', 'assistant', 'system', 'tool']:
-                    print(f"[WARNING] Ignorato messaggio #{i} con ruolo non valido: '{role}'")
-                    continue
-
-                # Ricostruisci il messaggio in modo sicuro
-                safe_msg = {'role': normalized_role}
-                if 'content' in msg_dict and msg_dict['content'] is not None:
-                    safe_msg['content'] = str(msg_dict['content'])
-                
-                # Gestisci tool_calls per assistant
-                if normalized_role == 'assistant' and 'tool_calls' in msg_dict:
-                    valid_tool_calls = []
-                    for tc in msg_dict.get('tool_calls', []):
-                        if isinstance(tc, dict) and all(k in tc for k in ['id', 'type', 'function']):
-                            valid_tool_calls.append(tc)
-                    if valid_tool_calls:
-                        safe_msg['tool_calls'] = valid_tool_calls
-                
-                # Gestisci tool_call_id per tool
-                if normalized_role == 'tool' and 'tool_call_id' in msg_dict:
-                    safe_msg['tool_call_id'] = msg_dict['tool_call_id']
-
-                # Aggiungi solo se ha contenuto o tool_calls validi
-                if safe_msg.get('content') or safe_msg.get('tool_calls'):
-                    validated_messages.append(safe_msg)
-
-            except Exception as e:
-                print(f"[ERROR] Errore durante la validazione del messaggio #{i}: {e}")
-                continue
-        # --- Fine Blocco di Validazione Unificato ---
+        # Sanifica la cronologia per rimuovere duplicati e correggere la sequenza
+        validated_messages = sanitize_history(messages)
 
         if not validated_messages:
             print("[ERROR] Nessun messaggio valido dopo la validazione. Impossibile procedere.")
@@ -315,14 +331,30 @@ def tool_node_wrapper(state: State) -> State:
                 if not isinstance(tool_args, dict):
                     tool_args = {"input": str(tool_args)}
                 
-                print(f"[TOOL_NODE] Esecuzione tool: {tool_name} con args: {tool_args}")
-                
                 # Trova il tool corrispondente
                 tool = next((t for t in tools if t.name == tool_name), None)
                 if not tool:
                     print(f"[TOOL_NODE] Tool non trovato: {tool_name}")
                     tool_result = f"Errore: Tool '{tool_name}' non trovato"
                 else:
+                    # FIX: Se il tool è human_assistance e non ha una query, la inseriamo dall'ultimo messaggio utente
+                    if tool_name == "human_assistance" and not tool_args.get("query"):
+                        print("[TOOL_NODE] La query per human_assistance è mancante, la estraggo dallo stato.")
+                        # Cerca l'ultimo messaggio umano nello stato (può essere dict o HumanMessage)
+                        last_human_message = next((msg for msg in reversed(messages) if isinstance(msg, HumanMessage) or (isinstance(msg, dict) and msg.get("role") == "user")), None)
+                        
+                        if last_human_message:
+                            # Estrai il contenuto in modo sicuro
+                            if isinstance(last_human_message, dict):
+                                query_content = last_human_message.get('content', '')
+                            else: # È un oggetto BaseMessage
+                                query_content = getattr(last_human_message, 'content', '')
+                            
+                            tool_args["query"] = query_content
+                            print(f"[TOOL_NODE] Query inserita: '{tool_args['query']}'")
+                        else:
+                            print("[TOOL_NODE] ATTENZIONE: Nessun messaggio umano trovato per popolare la query.")
+
                     # Esegui il tool con gli argomenti corretti
                     try:
                         tool_result = tool.invoke(tool_args)
@@ -400,104 +432,31 @@ def tool_node_wrapper(state: State) -> State:
         }
 
 graph_builder.add_node("tools", tool_node_wrapper)
-def tools_condition(state: State) -> str:
-    """Router: se tool_calls sono presenti, vai a tools, altrimenti END.
-    
-    Args:
-        state: Lo stato corrente della conversazione (immutabile)
-        
-    Returns:
-        str: "tools" se ci sono tool_calls, altrimenti END
-    """
-    try:
-        print("\n[TOOLS_CONDITION] Inizio verifica...")
-        # Crea una copia locale dello stato
-        state = state.copy()
-        state["_current_node"] = "tools_condition"
-        messages = state.get("messages", [])
-        
-        if not messages:
-            print("[TOOLS_CONDITION] Nessun messaggio trovato nello stato")
-            return END
-            
-        last_message = messages[-1]
-        print(f"[TOOLS_CONDITION] Ultimo messaggio: {type(last_message).__name__}")
-        
-        # Funzione per estrarre i tool calls in modo sicuro
-        def get_tool_calls(msg):
-            if hasattr(msg, "tool_calls"):
-                return getattr(msg, "tool_calls", [])
-            elif isinstance(msg, dict) and "tool_calls" in msg:
-                return msg["tool_calls"]
-            return []
-        
-        # Controlla se l'ultimo messaggio ha tool_calls
-        tool_calls = get_tool_calls(last_message)
-        
-        # Se non ci sono tool calls, controlla se è un messaggio assistant con tool_calls
-        if not tool_calls and (
-            (hasattr(last_message, "role") and last_message.role == "assistant") or
-            (isinstance(last_message, dict) and last_message.get("role") == "assistant")
-        ):
-            print("[TOOLS_CONDITION] Controllo tool_calls in messaggio assistant")
-            tool_calls = get_tool_calls(last_message)
-            
-            # Se ancora non ci sono tool calls, prova a controllare direttamente l'attributo
-            if not tool_calls and hasattr(last_message, "tool_calls"):
-                tool_calls = last_message.tool_calls
-        
-        if tool_calls:
-            print(f"[TOOLS_CONDITION] Tool calls rilevati: {[t.get('name', 'unknown') for t in tool_calls]}")
-            return "tools"
-            
-        print("[TOOLS_CONDITION] Nessun tool call rilevato, proseguo con END")
-        return END
-        
-    except Exception as e:
-        print(f"[ERRORE CRITICO] Errore in tools_condition: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return END
 
-graph_builder.add_conditional_edges("chatbot", tools_condition)
-graph_builder.add_edge("tools", "chatbot")
-graph_builder.add_edge(START, "chatbot")
-
-
-# 5. Routing condizionale: se chatbot genera tool_calls vai su tools, altrimenti END
 def route_tools(state: State) -> str:
-    """Router: se tool_calls sono presenti, vai a tools, altrimenti END.
-    
-    Args:
-        state: Lo stato corrente della conversazione (immutabile)
-        
-    Returns:
-        str: "tools" se ci sono tool_calls, altrimenti END
-    """
-    # Crea una copia locale dello stato
-    state = state.copy()
-    state["_current_node"] = "route_tools"
-    messages = state.get("messages", []).copy()
-    
-    if messages and hasattr(messages[-1], "tool_calls"):
-        tool_calls = getattr(messages[-1], "tool_calls", [])
-        if tool_calls and len(tool_calls) > 0:
-            return "tools"
+    """Router: se tool_calls sono presenti, vai a tools, altrimenti END."""
+    messages = state.get("messages", [])
+    if messages and hasattr(messages[-1], "tool_calls") and messages[-1].tool_calls:
+        return "tools"
     return END
 
+# Definisci la struttura del grafo
 graph_builder.add_conditional_edges("chatbot", route_tools, {"tools": "tools", END: END})
+graph_builder.add_edge(START, "chatbot")
+graph_builder.add_edge("tools", "chatbot")
 
-# 6. Aggiungi persistenza della memoria conversazionale
+# Compila il grafo con il checkpointer per la persistenza
 from langgraph.checkpoint.sqlite import SqliteSaver
 import sqlite3
 
 sqlite_path = os.path.join(os.path.dirname(__file__), "chatbot_memory.sqlite")
 
-conn = sqlite3.connect(sqlite_path, check_same_thread=False)
-memory = SqliteSaver(conn)
+def get_conn():
+    return sqlite3.connect(sqlite_path, check_same_thread=False)
 
-# Compila il grafo con il checkpointer
+memory = SqliteSaver(conn=get_conn())
 graph = graph_builder.compile(checkpointer=memory)
+
 
 if __name__ == "__main__":
     print("Chatbot LangGraph con tool TavilySearch, memoria persistente e supervisione umana.")
@@ -792,7 +751,12 @@ if __name__ == "__main__":
                             elif hasattr(msg, 'tool'):
                                 tool_names.add(msg.tool)
                         if tool_names:
-                            print(f"[GRAFO]   Tool utilizzati: {', '.join(tool_names)}")
+                            # FIX: Filtra eventuali None prima di fare il join
+                            valid_tool_names = [name for name in tool_names if name is not None]
+                            if valid_tool_names:
+                                print(f"[GRAFO]   Tool utilizzati: {', '.join(valid_tool_names)}")
+                                if 'human_assistance' in valid_tool_names:
+                                    print("[GRAFO]   Richiesta assistenza umana")
                         else:
                             print("[GRAFO]   Tool sconosciuto")
             
