@@ -9,7 +9,7 @@ import json
 from dotenv import load_dotenv
 import json
 from langchain_tavily import TavilySearch
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, ToolMessage, HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from langgraph.prebuilt import ToolNode
 from langgraph.types import Command, interrupt
@@ -97,16 +97,43 @@ search_tool = TavilySearch(max_results=2)
 # Tool di supervisione umana secondo tutorial LangGraph
 @tool
 def human_assistance(query: str) -> str:
-    """Richiedi assistenza a un umano. Usa questo strumento quando la richiesta richiede un giudizio umano, 
-    è di natura sensibile o richiede competenze specialistiche che vanno oltre le capacità dell'AI."""
-    try:
-        print(f"\n[SUPERVISIONE UMANA] Richiesta di intervento umano per: {query}")
-        human_response = input("Inserisci la risposta: ")
-        print(f"[RISPOSTA UMANA] {human_response}")
-        return human_response
-    except Exception as e:
-        print(f"[ERRORE] Errore durante l'assistenza umana: {str(e)}")
-        return "Mi dispiace, si è verificato un errore durante la richiesta di assistenza umana. Riprova più tardi."
+    """Usa questo strumento SOLO quando l'utente chiede esplicitamente di parlare con un umano o quando la richiesta è impossibile da soddisfare con gli altri tool disponibili. Non usarlo per domande su argomenti sensibili come finanza o salute se puoi fornire una risposta generica con un disclaimer."""
+    print(f"\n[SUPERVISIONE UMANA] Richiesta di intervento per: {query}")
+    print("Avvio della sessione di supervisione. Chatta con l'AI per formulare una risposta. Digita '/fine' per terminare.")
+    
+    # Cronologia della sotto-conversazione
+    sub_conversation_messages = [
+        SystemMessage(content="Sei un assistente AI che aiuta un supervisore umano a formulare una risposta per un utente finale. Sii conciso e collaborativo."),
+        HumanMessage(content=f"La richiesta originale dell'utente è: '{query}'. Dammi un suggerimento su come rispondere.")
+    ]
+    
+    # L'AI dà il primo suggerimento
+    ai_response = llm.invoke(sub_conversation_messages)
+    print(f"[Supervisore] AI: {ai_response.content}")
+    sub_conversation_messages.append(ai_response)
+
+    while True:
+        # Il supervisore fornisce il suo input
+        human_input = input("[Supervisore] Tu: ")
+        if human_input.lower() == '/fine':
+            print("[SUPERVISIONE UMANA] Sessione terminata.")
+            break
+        
+        sub_conversation_messages.append(HumanMessage(content=human_input))
+
+        # L'AI fornisce la sua risposta al supervisore
+        ai_response = llm.invoke(sub_conversation_messages)
+        print(f"[Supervisore] AI: {ai_response.content}")
+        sub_conversation_messages.append(ai_response)
+
+    # Riassume la conversazione per la cronologia principale
+    summary_messages = [msg for msg in sub_conversation_messages if not isinstance(msg, SystemMessage)]
+    summary = "\n".join([f"{'Supervisore' if isinstance(msg, HumanMessage) else 'AI'}: {msg.content}" for msg in summary_messages])
+    
+    final_response = f"Il supervisore umano ha avuto la seguente conversazione con l'AI per formulare una risposta: \n---\n{summary}\n---"
+    
+    print(f"[RISPOSTA UMANA FINALE] {final_response}")
+    return final_response
 
 tools = [search_tool, human_assistance]
 
@@ -117,28 +144,27 @@ llm_with_tools = llm.bind_tools(tools)
 # 3. Nodo principale chatbot (supporta solo una tool_call per ciclo, come da tutorial)
 def convert_message_to_dict(message):
     """Converte un oggetto messaggio in un dizionario, normalizzando 'type' a 'role'."""
-    final_dict = {}
     if isinstance(message, dict):
-        final_dict = message.copy()
-    elif hasattr(message, 'dict'):
-        final_dict = message.dict()
-    elif hasattr(message, 'to_dict'):
-        final_dict = message.to_dict()
+        msg_dict = message.copy()
+    elif hasattr(message, 'model_dump'):
+        # Usa model_dump per una conversione robusta che preserva i tool_calls
+        msg_dict = message.model_dump(exclude_none=True)
     else:
         # Fallback per oggetti non standard
-        if hasattr(message, 'role'):
-            final_dict['role'] = message.role
-        elif hasattr(message, 'type'):
-            final_dict['role'] = message.type
-        
-        if hasattr(message, 'content'):
-            final_dict['content'] = message.content
-        if hasattr(message, 'tool_calls'):
-            final_dict['tool_calls'] = message.tool_calls
-        if hasattr(message, 'tool_call_id'):
-            final_dict['tool_call_id'] = message.tool_call_id
+        msg_dict = vars(message)
 
-    # Normalizza 'type' a 'role' se 'role' non è già presente
+    # Normalizza 'type' a 'role' per la compatibilità con le API OpenAI
+    if 'type' in msg_dict and 'role' not in msg_dict:
+        type_val = msg_dict.pop('type')
+        if type_val == 'ai':
+            msg_dict['role'] = 'assistant'
+        elif type_val == 'human':
+            msg_dict['role'] = 'user'
+        else:
+            # Per 'system', 'tool', etc., il nome è lo stesso
+            msg_dict['role'] = type_val
+            
+    return msg_dict
     if 'type' in final_dict and 'role' not in final_dict:
         final_dict['role'] = final_dict.pop('type')
 
@@ -169,16 +195,24 @@ def sanitize_history(messages: list) -> list:
         except Exception as e:
             print(f"[SANITIZE] Ignorato messaggio non processabile durante la deduplicazione: {e}")
 
-    # 2. Valida la sequenza dei tool_calls
+    # 2. Valida la sequenza dei tool_calls in modo più robusto
+    # Prima, raccogli tutti i tool_call_id validi da tutti i messaggi dell'assistente
+    valid_tool_call_ids = set()
+    for msg in unique_messages:
+        if msg.get('role') == 'assistant' and msg.get('tool_calls'):
+            for tool_call in msg['tool_calls']:
+                if isinstance(tool_call, dict) and tool_call.get('id'):
+                    valid_tool_call_ids.add(tool_call['id'])
+
+    # Ora, costruisci la sequenza valida
     valid_sequence = []
     for msg in unique_messages:
         if msg.get('role') == 'tool':
-            if (valid_sequence and 
-                valid_sequence[-1].get('role') == 'assistant' and 
-                valid_sequence[-1].get('tool_calls')):
+            # Un messaggio 'tool' è valido se il suo ID corrisponde a una chiamata precedente
+            if msg.get('tool_call_id') in valid_tool_call_ids:
                 valid_sequence.append(msg)
             else:
-                print(f"[SANITIZE] Ignorato messaggio 'tool' orfano: {str(msg.get('content', ''))[:100]}")
+                print(f"[SANITIZE] Ignorato messaggio 'tool' orfano o con ID non corrispondente: {str(msg.get('content', ''))[:100]}")
         else:
             valid_sequence.append(msg)
 
@@ -214,6 +248,12 @@ def chatbot(state: State) -> State:
         
         messages = new_state.get("messages", [])
 
+        # DEBUG: Stampa la cronologia esatta ricevuta dal nodo
+        print("\n[DEBUG] Cronologia ricevuta dal nodo chatbot (prima della sanificazione):")
+        for i, msg in enumerate(messages):
+            msg_dict = convert_message_to_dict(msg)
+            print(f"  {i}: {json.dumps(msg_dict, indent=2, ensure_ascii=False)}")
+
         # Sanifica la cronologia per rimuovere duplicati e correggere la sequenza
         validated_messages = sanitize_history(messages)
 
@@ -236,10 +276,9 @@ def chatbot(state: State) -> State:
         
         print(f"[CHATBOT] Risposta generata: {getattr(message, 'content', str(message))[:100]}...")
 
-        # Aggiungi la nuova risposta alla cronologia originale
-        new_state["messages"] = messages + [message]
-
-        return new_state
+        # Restituisce solo i nuovi messaggi da aggiungere. LangGraph si occuperà di unirli.
+        print(f"[GRAFO] Nodo: chatbot")
+        return {"messages": [message]}
 
     except Exception as e:
         print(f"[CRITICAL] Errore critico in chatbot(): {str(e)}")
@@ -259,177 +298,75 @@ graph_builder.add_node("chatbot", chatbot)
 # (questo gestisce sia Tavily che human_assistance)
 tool_node = ToolNode(tools=tools)
 
-def tool_node_wrapper(state: State) -> State:
-    try:
-        print("[DEBUG] ToolNode - Inizio elaborazione")
-        
-        # Crea una copia dello stato per evitare modifiche in-place
-        new_state = state.copy()
-        new_state["_current_node"] = "tool_node"
-        
-        messages = new_state.get("messages", [])
-        if not messages:
-            print("[TOOL_NODE] Nessun messaggio trovato")
-            return {"messages": [], "_current_node": "tool_node"}
-            
-        last_message = messages[-1]
-        print(f"[TOOL_NODE] Ultimo messaggio: {type(last_message).__name__}")
-        
-        # Converti l'ultimo messaggio in dizionario
-        last_msg_dict = convert_message_to_dict(last_message)
-        
-        # Estrai le tool calls dal messaggio
-        tool_calls = last_msg_dict.get("tool_calls", [])
-        if not tool_calls:
-            print("[TOOL_NODE] Nessuna tool call trovata")
-            return new_state
-            
-        print(f"[TOOL_NODE] Trovate {len(tool_calls)} tool calls")
-        
-        # Esegui ogni tool e raccogli i risultati
-        tool_responses = []
-        for tool_call in tool_calls:
-            try:
-                # Estrai le informazioni necessarie dalla tool call
-                tool_call_id = None
-                tool_name = None
-                tool_args = {}
-                
-                # Gestisci diversi formati di tool call
-                if isinstance(tool_call, dict):
-                    tool_call_id = tool_call.get("id")
-                    if "function" in tool_call:
-                        tool_name = tool_call["function"].get("name")
-                        tool_args_str = tool_call["function"].get("arguments", "{}")
-                    else:
-                        tool_name = tool_call.get("name")
-                        tool_args_str = tool_call.get("arguments", "{}")
-                elif hasattr(tool_call, "function"):
-                    tool_call_id = getattr(tool_call, "id", None)
-                    tool_name = getattr(tool_call.function, "name", None)
-                    tool_args_str = getattr(tool_call.function, "arguments", "{}")
-                else:
-                    tool_call_id = getattr(tool_call, "id", None)
-                    tool_name = getattr(tool_call, "name", None)
-                    tool_args_str = getattr(tool_call, "arguments", "{}")
-                
-                if not tool_name or not tool_call_id:
-                    print(f"[TOOL_NODE] Tool call non valida: {tool_call}")
-                    continue
-                
-                # Converti gli argomenti da stringa JSON a dizionario se necessario
-                if isinstance(tool_args_str, str):
-                    import json
-                    try:
-                        tool_args = json.loads(tool_args_str)
-                    except json.JSONDecodeError:
-                        tool_args = {"query": tool_args_str}  # Fallback per argomenti non JSON
-                else:
-                    tool_args = tool_args_str
-                
-                # Assicurati che tool_args sia un dizionario
-                if not isinstance(tool_args, dict):
-                    tool_args = {"input": str(tool_args)}
-                
-                # Trova il tool corrispondente
-                tool = next((t for t in tools if t.name == tool_name), None)
-                if not tool:
-                    print(f"[TOOL_NODE] Tool non trovato: {tool_name}")
-                    tool_result = f"Errore: Tool '{tool_name}' non trovato"
-                else:
-                    # FIX: Se il tool è human_assistance e non ha una query, la inseriamo dall'ultimo messaggio utente
-                    if tool_name == "human_assistance" and not tool_args.get("query"):
-                        print("[TOOL_NODE] La query per human_assistance è mancante, la estraggo dallo stato.")
-                        # Cerca l'ultimo messaggio umano nello stato (può essere dict o HumanMessage)
-                        last_human_message = next((msg for msg in reversed(messages) if isinstance(msg, HumanMessage) or (isinstance(msg, dict) and msg.get("role") == "user")), None)
-                        
-                        if last_human_message:
-                            # Estrai il contenuto in modo sicuro
-                            if isinstance(last_human_message, dict):
-                                query_content = last_human_message.get('content', '')
-                            else: # È un oggetto BaseMessage
-                                query_content = getattr(last_human_message, 'content', '')
-                            
-                            tool_args["query"] = query_content
-                            print(f"[TOOL_NODE] Query inserita: '{tool_args['query']}'")
-                        else:
-                            print("[TOOL_NODE] ATTENZIONE: Nessun messaggio umano trovato per popolare la query.")
+def tool_node_wrapper(state: State) -> dict:
+    """Wrapper per il nodo tool che gestisce l'invocazione e la risposta in modo robusto."""
+    print("\n[DEBUG] ToolNode - Inizio elaborazione")
+    messages = state.get("messages", [])
+    
+    # Controlla se l'ultimo messaggio ha delle tool_calls valide
+    if not messages or not hasattr(messages[-1], "tool_calls") or not messages[-1].tool_calls:
+        print("[TOOL_NODE] Nessuna tool call valida trovata.")
+        # Non c'è nulla da fare, restituisce un dizionario vuoto per non modificare lo stato
+        return {}
 
-                    # Esegui il tool con gli argomenti corretti
-                    try:
-                        tool_result = tool.invoke(tool_args)
-                        print(f"[TOOL_NODE] Tool {tool_name} eseguito con successo")
-                    except Exception as e:
-                        error_msg = f"Errore durante l'esecuzione del tool: {str(e)}"
-                        print(f"[ERROR] {error_msg}")
-                        tool_result = error_msg
+    last_message = messages[-1]
+    print(f"[TOOL_NODE] Ultimo messaggio: {type(last_message).__name__} con ID {getattr(last_message, 'id', 'N/A')}")
+    tool_responses = []
+
+    for tool_call in last_message.tool_calls:
+        # Assicurati che tool_call sia un dizionario
+        if not isinstance(tool_call, dict):
+            print(f"[WARN] tool_call non è un dizionario: {tool_call}. Salto.")
+            continue
+
+        tool_call_id = tool_call.get("id")
+        tool_name = tool_call.get("name")
+        tool_args = tool_call.get("args", {})
+        
+        print(f"[TOOL_NODE] Esecuzione tool: {tool_name}({tool_args}) con ID: {tool_call_id}")
+
+        try:
+            tool = next((t for t in tools if t.name == tool_name), None)
+            if not tool:
+                print(f"[TOOL_NODE] Tool non trovato: {tool_name}")
+                tool_result = f"Errore: Tool '{tool_name}' non trovato"
+            else:
+                # Gestione speciale per human_assistance senza query
+                if tool_name == "human_assistance" and not tool_args.get("query"):
+                    print("[TOOL_NODE] Query per human_assistance mancante, estraggo dall'ultimo messaggio utente.")
+                    last_human_message = next((msg for msg in reversed(messages) if isinstance(msg, HumanMessage)), None)
+                    if last_human_message:
+                        tool_args["query"] = last_human_message.content
+                        print(f"[TOOL_NODE] Query inserita: '{tool_args['query']}'")
                 
-                # Crea la risposta del tool nel formato corretto per le API OpenAI
-                tool_response = {
-                    "role": "tool",
-                    "content": str(tool_result),
-                    "tool_call_id": tool_call_id,
-                    "name": tool_name
-                }
-                
-                tool_responses.append(tool_response)
-                
-            except Exception as e:
-                error_msg = f"Errore durante l'elaborazione della tool call: {str(e)}"
-                print(f"[ERROR] {error_msg}")
-                import traceback
-                traceback.print_exc()
-                
-                # Aggiungi una risposta di errore
-                tool_responses.append({
-                    "role": "tool",
-                    "content": error_msg,
-                    "tool_call_id": tool_call_id or "unknown",
-                    "name": tool_name or "unknown"
-                })
-        
-        # Crea una copia dei messaggi esistenti
-        result_messages = messages.copy()
-        
-        # Aggiungi le risposte dei tool ai messaggi
-        for response in tool_responses:
-            # Crea un nuovo messaggio per ogni risposta tool
-            tool_message = {
-                "role": "tool",
-                "content": response["content"],
-                "tool_call_id": response["tool_call_id"],
-                "name": response["name"]
-            }
-            result_messages.append(tool_message)
-        
-        print(f"[TOOL_NODE] Aggiunte {len(tool_responses)} risposte tool")
-        
-        return {
-            "messages": result_messages,
-            "_current_node": "tool_node"
-        }
-        
-    except Exception as e:
-        print(f"[ERROR] Errore critico in tool_node: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        
-        # In caso di errore critico, restituisci un messaggio di errore
-        error_response = {
-            "role": "tool",
-            "content": f"Si è verificato un errore critico durante l'esecuzione del tool: {str(e)}",
-            "tool_call_id": "error_" + str(hash(str(e)))[:8],
-            "name": "error_handler"
-        }
-        
-        # Assicurati di restituire lo stato con i messaggi esistenti + l'errore
-        result_messages = state.get("messages", []).copy()
-        result_messages.append(error_response)
-        
-        return {
-            "messages": result_messages,
-            "_current_node": "tool_node"
-        }
+                tool_result = tool.invoke(tool_args)
+                print(f"[TOOL_NODE] Tool '{tool_name}' eseguito con successo.")
+
+            # Crea un oggetto ToolMessage
+            tool_responses.append(
+                ToolMessage(
+                    content=str(tool_result), 
+                    tool_call_id=tool_call_id, 
+                    name=tool_name
+                )
+            )
+        except Exception as e:
+            print(f"[ERROR] Errore durante l'esecuzione del tool '{tool_name}': {e}")
+            import traceback
+            traceback.print_exc()
+            # Crea un ToolMessage anche in caso di errore
+            tool_responses.append(
+                ToolMessage(
+                    content=f"Errore durante l'esecuzione del tool '{tool_name}': {e}",
+                    tool_call_id=tool_call_id,
+                    name=tool_name,
+                )
+            )
+
+    print(f"[TOOL_NODE] Aggiunte {len(tool_responses)} risposte tool.")
+    # LangGraph si aspetta un dizionario che aggiornerà lo stato.
+    # Aggiungendo i messaggi qui, verranno accodati alla lista 'messages' esistente.
+    return {"messages": tool_responses}
 
 graph_builder.add_node("tools", tool_node_wrapper)
 
