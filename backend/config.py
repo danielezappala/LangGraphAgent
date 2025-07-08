@@ -1,3 +1,8 @@
+import os
+
+# Percorso del database SQLite per la memoria del chatbot
+SQLITE_PATH = os.path.join(os.path.dirname(__file__), "chatbot_memory.sqlite")
+
 CONTEXT_WINDOW = 4096
 MIN_RESPONSE_TOKENS = 128
 MODEL_NAME = "gpt-3.5-turbo"
