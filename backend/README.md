@@ -1,68 +1,81 @@
-# Redi – Agenti AI sempre pronti
+# Agente Conversazionale con LangGraph, FastAPI e Notion
 
-> **Redi** è la piattaforma per la configurazione e l'utilizzo di agenti AI. Il nome richiama "ready" (pronto), trasmettendo l'idea di assistente sempre disponibile e reattivo. È breve, facile da ricordare, con richiami culturali a Francesco Redi, scienziato innovatore. Redi si distingue per originalità, versatilità e neutralità culturale, facilitando il posizionamento del brand nel mercato AI.
+Questo progetto implementa un agente conversazionale avanzato utilizzando un'architettura moderna basata su LangGraph per la logica dell'agente, FastAPI per il backend e un'interfaccia React per il frontend. L'agente è in grado di utilizzare tool esterni, inclusa un'integrazione con Notion tramite MCP (Model Context Protocol).
 
 ---
 
-# Agente Conversazionale con LangGraph e LangChain
+## Architettura del Progetto
 
-## Requisiti OOP e struttura degli agenti
+La codebase è suddivisa in due componenti principali: `backend` e `frontend`.
 
-- Ogni agente AI deve essere un'istanza di una sottoclasse di `BaseAgent` (vedi `agent.py`).
-- Un agente deve avere almeno: `name`, `memory`, `llm_client`, `system_prompt`, `graph`.
-- **Requisito fondamentale:** il grafo di ogni agente deve includere sempre almeno un nodo di start e uno di end, con edge iniziale e finale. Questo garantisce la corretta visualizzazione e coerenza tra backend e frontend.
-- La costruzione del grafo avviene tramite il metodo `_build_graph()` della classe agente.
-- L'esportazione del grafo in formato Mermaid avviene tramite utility che usano solo API pubbliche (`nodes`, `get_graph`), senza accedere a proprietà private.
-- Sono presenti test automatici che validano l'istanziazione degli agenti e la struttura del grafo.
+### Backend
 
-## Struttura del progetto
+Il backend è un'applicazione FastAPI che orchestra la logica dell'agente.
 
 ```
-LGA1/
-├── agent.py                # Classi BaseAgent, ConversationalAgent: OOP, orchestrazione, grafo
-├── config.py               # Parametri di configurazione e flag di logging
-├── llm_utils.py            # Classe LLMClient: invocazione LLM, conteggio token, continuazione automatica
-├── main.py                 # Entry point: avvio dell'agente
-├── persistent_memory.py    # Classe PersistentMemory: gestione cronologia persistente
-├── graph_mermaid.py        # Utility per esportazione Mermaid del grafo
-├── test_agent.py           # Test automatici OOP e grafo
-├── system_prompt.json      # Prompt di sistema
-├── history.json            # Cronologia conversazione persistente
+backend/
+├── server.py               # Entry point del server FastAPI, gestisce il ciclo di vita e l'endpoint /chat.
+├── graph_definition.py     # Cuore dell'agente: definisce lo stato, i nodi e la struttura del grafo LangGraph.
+├── tools.py                # Definisce i tool statici a disposizione dell'agente (es. Tavily Search).
+├── mcp_config.json         # Configurazione per i server MCP (es. Notion) per caricare tool dinamici.
+├── chatbot_memory.sqlite   # Database SQLite per la persistenza della cronologia delle conversazioni.
+└── .env                    # File per le variabili d'ambiente (API keys).
 ```
 
-## Avvio rapido
+### Frontend
 
-1. Assicurati di avere un file `.env` con la tua chiave OpenAI:
-   ```
-   OPENAI_API_KEY=sk-...
-   ```
-2. Installa le dipendenze:
-   ```bash
-   pip install langgraph langchain-openai openai tiktoken python-dotenv
-   ```
-3. Avvia l'agente:
-   ```bash
-   python main.py
-   ```
+Il frontend è un'applicazione React che fornisce l'interfaccia utente per la chat (dettagli omessi).
 
-## Configurazione dei log
+---
 
-Nel file `config.py` puoi attivare o disattivare i vari livelli di log:
-- `LOG_MONITOR`: log dettagliati su token, tempi, continuazioni
-- `LOG_DEBUG`: log di debug su contesto e risposte troncate
-- `LOG_INFO`: log informativi su cronologia, riassunti, ecc.
+## Avvio Rapido
 
-## Descrizione dei moduli principali
+### 1. Prerequisiti
 
-- **main.py**: punto di ingresso, carica la configurazione, la memoria, il prompt di sistema e avvia la conversazione.
-- **agent.py**: contiene la classe `ConversationalAgent` che gestisce il ciclo di conversazione e la logica del grafo.
-- **persistent_memory.py**: classe `PersistentMemory` per la gestione della cronologia persistente su file JSON.
-- **llm_utils.py**: classe `LLMClient` per la gestione delle chiamate all'LLM, conteggio token e continuazione automatica delle risposte.
-- **config.py**: parametri di configurazione, modello, limiti token, file, flag di logging.
-- **system_prompt.json**: prompt di sistema personalizzabile.
-- **history.json**: cronologia della conversazione, aggiornata e salvata automaticamente.
+- Python 3.9+
+- Node.js e npm
 
-## Note
-- Tutta la logica è ora modulare, OOP e facilmente estendibile.
-- Puoi cambiare modello, prompt, limiti di token e log senza modificare il codice principale.
-- Per aggiungere nuove strategie di memoria o prompt, crea nuovi moduli e aggiorna la configurazione. 
+### 2. Configurazione Backend
+
+1.  **Crea le variabili d'ambiente**: Nella directory `backend`, crea un file `.env` e aggiungi le tue API key:
+    ```
+    OPENAI_API_KEY="sk-..."
+    TAVILY_API_KEY="tvly-..."
+    
+    # Esempio per Notion MCP
+    OPENAPI_MCP_HEADERS='{"notionApi": {"Authorization": "Bearer SECRET_...", "Notion-Version": "2022-06-28"}}'
+    ```
+
+2.  **Installa le dipendenze Python**: Dalla root del progetto, esegui:
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+3.  **Avvia il server backend**: Dalla root del progetto, esegui:
+    ```bash
+    uvicorn backend.server:app --reload
+    ```
+    Il server sarà in ascolto su `http://127.0.0.1:8000`.
+
+### 3. Configurazione Frontend
+
+1.  **Installa le dipendenze Node.js**: Spostati nella directory `frontend`:
+    ```bash
+    cd frontend
+    npm install
+    ```
+
+2.  **Avvia il server di sviluppo**: 
+    ```bash
+    npm start
+    ```
+    L'interfaccia sarà accessibile su `http://localhost:3000`.
+
+---
+
+## Concetti Chiave
+
+- **LangGraph**: La logica dell'agente è modellata come un grafo di stati. Questo permette un controllo preciso sul flusso della conversazione e sull'esecuzione dei tool.
+- **FastAPI**: Fornisce un server web asincrono, robusto e performante per esporre l'agente tramite un'API REST.
+- **Persistenza**: La cronologia delle conversazioni è salvata in un database SQLite tramite il checkpointer `AsyncSqliteSaver` di LangGraph, garantendo che lo stato venga mantenuto tra le sessioni.
+- **MCP (Model Context Protocol)**: Utilizzato per caricare dinamicamente tool esterni, come quelli per Notion, basandosi su un file di configurazione `mcp_config.json`. 

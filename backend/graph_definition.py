@@ -1,12 +1,10 @@
-import asyncio
 import json
 import pathlib
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import SystemMessage, BaseMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from typing import TypedDict, Annotated, List
 import operator
-from langchain_core.messages import BaseMessage, AIMessage, ToolMessage
 from langgraph.graph import StateGraph, END
 
 # Definiamo esplicitamente lo stato dell'agente per evitare problemi di importazione
@@ -30,11 +28,7 @@ async def build_graph(checkpointer):
     mcp_tools = await client.get_tools()
     tools = mcp_tools + static_tools
 
-    # Stampa la lista completa dei tool caricati
-    print("--- Strumenti Caricati ---")
-    for tool in tools:
-        print(f"  - {tool.name}")
-    print("--------------------------")
+
 
     
     SYSTEM_PROMPT = (
@@ -48,6 +42,11 @@ async def build_graph(checkpointer):
         
         "You are strictly forbidden from calling 'API-patch-block-children' or 'API-patch-page' without a 'page_id' that you have obtained from a previous 'API-post-search' call."
         "If you don't have the page_id, your only option is to search for it first."
+
+        "\n**Content Presentation Rules**:\n"
+        "- When you describe the content of a Notion page, you MUST ignore any empty elements like empty paragraphs or empty blocks."
+        "- List only the items that have actual content, such as text, images, or child pages."
+        "- Be concise and clear in your summary."
     )
     
     # Definisci il modello LLM e il prompt

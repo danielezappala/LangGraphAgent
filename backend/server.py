@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from contextlib import asynccontextmanager
 
 from .graph_definition import build_graph
-from .config import SQLITE_PATH
+SQLITE_PATH = os.path.join(os.path.dirname(__file__), "chatbot_memory.sqlite")
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langchain_core.messages import HumanMessage
 
