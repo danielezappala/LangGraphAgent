@@ -54,24 +54,26 @@ async def async_main():
             # The input to the graph must match the State structure
             input_state = {"messages": [HumanMessage(content=user_input)]}
             
-            final_state = None
-            # Esegui il grafo in streaming per vedere i passaggi intermedi
-            # Stream the graph to see intermediate steps
-            async for event in graph.astream(input_state, config, stream_mode="values"):
-                messages = event.get("messages", [])
-                if messages:
-                    last_message = messages[-1]
-                    if isinstance(last_message, AIMessage) and last_message.tool_calls:
-                        print(f"[GRAPH] Assistant decided to use a tool...", flush=True)
-                    elif isinstance(last_message, ToolMessage):
-                        print(f"[GRAPH]   -> Executed tool: '{last_message.name}'", flush=True)
-                        #print(f"[GRAPH]   -> Tool output: {last_message.content}", flush=True)
-                final_state = event
+            print("--- Inizio esecuzione Grafo ---")
+            # Usiamo stream_mode='updates' per avere un log dettagliato di ogni nodo eseguito
+            async for update in graph.astream(input_state, config, stream_mode="updates"):
+                for node_name, node_output in update.items():
+                    print(f"[GRAFO] Eseguito nodo: '{node_name}'")
+                    # Prettify e stampa l'output del nodo per chiarezza
+                    if isinstance(node_output, dict) and 'messages' in node_output:
+                        for message in node_output['messages']:
+                            message.pretty_print()
+                    else:
+                        print(f"        Output: {node_output}")
+                print("---")
+            
+            # L'output finale lo recuperiamo invocando lo stato finale del grafo
+            final_state = await graph.aget_state(config)
 
             # Stampa la risposta finale dell'assistente
             # Print the final assistant response
             if final_state:
-                final_messages = final_state.get("messages", [])
+                final_messages = final_state.values.get("messages", [])
                 if final_messages and isinstance(final_messages[-1], AIMessage) and final_messages[-1].content:
                     tool_name = None
                     # Controlla se un tool è stato usato prima del messaggio finale dell'AI

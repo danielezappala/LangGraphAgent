@@ -25,7 +25,7 @@ from typing import Any, Coroutine, Dict, List, Type
 from dotenv import load_dotenv
 from langchain.tools import Tool
 from langchain_core.tools import BaseTool, StructuredTool
-from pydantic import BaseModel, create_model
+from pydantic import BaseModel, create_model, Field
 
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
@@ -87,7 +87,6 @@ async def _create_session() -> ClientSession:
 
     # L'inizializzazione viene gestita da ClientSession.__aenter__
     logger.info("🔗  Sessione MCP inizializzata")
-    print(await session.list_tools())
     return session
 
 
@@ -137,10 +136,24 @@ def _schema_to_args_model(tool_name: str, schema: Dict[str, Any]) -> Type[BaseMo
 # --------------------------------------------------------------------------- #
 
 
+# Whitelist dei tool MCP da caricare per ridurre il context
+_MCP_TOOL_WHITELIST = [
+    "API-post-search",
+    "API-patch-block-children",
+    "API-retrieve-a-page",
+    "API-patch-page",
+]
+
 # Descrizioni migliorate per i tool MCP
 _TOOL_DESCRIPTION_OVERRIDES = {
-    "API-post-search": "Use this tool to search for a page in Notion by its title. Perfect for when the user asks to find or search for a specific page."
+    "API-post-search": "Use this tool to search for a page in Notion by its title. Perfect for when the user asks to find or search for a specific page. This is the first step before trying to modify a page.",
+    "API-patch-page": "Use this tool to update the properties of a specific page, like its title, icon, or cover. You MUST provide a valid 'page_id'. If you don't have the page_id, use the 'API-post-search' tool first.",
+    "API-patch-block-children": "Use this tool to add content (as blocks) to a specific page. This is the correct tool for adding notes or text. You MUST provide a valid 'page_id' for the parent page. If you don't have the page_id, use the 'API-post-search' tool first.",
 }
+
+class NotionSearchArgsSchema(BaseModel):
+    """Input schema for the Notion search tool."""
+    query: str = Field(description="The title of the page to search for in Notion.")
 
 def _mcp_tool_to_langchain(defn: Dict[str, Any]) -> BaseTool:
     tool_name = defn.get("name", "unnamed")
@@ -148,8 +161,7 @@ def _mcp_tool_to_langchain(defn: Dict[str, Any]) -> BaseTool:
     # Usa una descrizione migliorata se disponibile, altrimenti usa quella di default
     base_description = _TOOL_DESCRIPTION_OVERRIDES.get(tool_name, defn.get("description", "No description"))
     
-    # Aggiungi il prefisso "Notion: " per rendere chiaro all'LLM che si tratta di un tool di Notion
-    description = f"Notion: {base_description}"
+    description = base_description
     
     # Log per debug
     if tool_name == "API-post-search":
@@ -161,16 +173,23 @@ def _mcp_tool_to_langchain(defn: Dict[str, Any]) -> BaseTool:
         logger.debug("⚙️  Invoco %s con %s", tool_name, kwargs)
         try:
             async with get_mcp_session() as session:
-                return await session.call_tool(tool_name, **kwargs)
+                # La funzione call_tool si aspetta il dizionario di argomenti, non gli argomenti spacchettati.
+                return await session.call_tool(tool_name, kwargs)
         except Exception as exc:
             logger.exception("Errore in %s", tool_name)
-            return f"Errore nell'esecuzione di {tool_name}: {exc}"
+            # Restituisce un messaggio di errore chiaro e non ambiguo per l'LLM.
+            # Questo evita che l'agente interpreti un JSON di errore come un risultato valido.
+            return f"ERROR: The tool {tool_name} failed to execute. Please inform the user that there was a technical problem and they should try again later."
+
+    # Se il tool è quello di ricerca, usa lo schema di argomenti specifico e robusto.
+    # Altrimenti, usa il modello generato dinamicamente.
+    schema = NotionSearchArgsSchema if tool_name == "API-post-search" else ArgsModel
 
     return StructuredTool.from_function(
         name=tool_name,
         description=description,
+        args_schema=schema,
         coroutine=tool_coroutine,  # Usa la coroutine per l'esecuzione asincrona
-        args_schema=ArgsModel,
     )
 
 
@@ -180,16 +199,27 @@ def _mcp_tool_to_langchain(defn: Dict[str, Any]) -> BaseTool:
 
 
 async def load_mcp_tools() -> List[BaseTool]:
-    """Ritorna la lista dei tool MCP convertiti in LangChain."""
-    async with get_mcp_session() as session:
-        # session.list_tools() ritorna un oggetto con un attributo .tools
-        list_tools_response = await session.list_tools()
-        tool_definitions = list_tools_response.tools
-        
-        # Convertiamo le definizioni dei tool in dizionari
-        defs = [tool.model_dump() for tool in tool_definitions if tool]
-    logger.info("🎁  Trovati %d tool MCP", len(defs))
-    return [_mcp_tool_to_langchain(d) for d in defs]
+    """Carica i tool disponibili dal server MCP, filtrandoli con una whitelist."""
+    logger.info("🛠️  Caricamento tool MCP...")
+    try:
+        async with get_mcp_session() as session:
+            all_tools_response = await session.list_tools()
+            all_tools_raw = all_tools_response.tools
+
+            if not all_tools_raw:
+                logger.warning("⚠️  Nessun tool MCP trovato.")
+                return []
+
+            # Filtra i tool in base alla whitelist per ridurre il context
+            filtered_tools = [tool for tool in all_tools_raw if tool.name in _MCP_TOOL_WHITELIST]
+            logger.info(f"🎁  Trovati {len(all_tools_raw)} tool MCP, caricati {len(filtered_tools)} dopo il filtro.")
+
+            langchain_tools = [_mcp_tool_to_langchain(tool.model_dump()) for tool in filtered_tools]
+            return langchain_tools
+
+    except Exception as e:
+        logger.error(f"💥 Errore durante il caricamento dei tool MCP: {e}")
+        return []
 
 
 # --------------------------------------------------------------------------- #
