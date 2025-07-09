@@ -35,20 +35,20 @@ export function ChatInterface({ selectedAgent, onAgentChange }: ChatInterfacePro
 
     const viewportRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        const getSuggestions = async () => {
-            try {
-                const suggestions = await Promise.all([
-                    generatePromptStarter({}),
-                    generatePromptStarter({}),
-                ]);
-                setPromptSuggestions(suggestions.map(s => s.prompt));
-            } catch (error) {
-                console.error("Failed to generate prompt starters:", error);
-            }
-        }
-        getSuggestions();
-    }, []);
+    // useEffect(() => {
+    //     const getSuggestions = async () => {
+    //         try {
+    //             const suggestions = await Promise.all([
+    //                 generatePromptStarter({}),
+    //                 generatePromptStarter({}),
+    //             ]);
+    //             setPromptSuggestions(suggestions.map(s => s.prompt));
+    //         } catch (error) {
+    //             console.error("Failed to generate prompt starters:", error);
+    //         }
+    //     }
+    //     getSuggestions();
+    // }, []);
 
     useEffect(() => {
         if (viewportRef.current) {
@@ -112,7 +112,7 @@ export function ChatInterface({ selectedAgent, onAgentChange }: ChatInterfacePro
                                 <RediLogo className="h-8 w-8 shrink-0 text-primary"/>
                                 <div className="flex items-center space-x-2 rounded-lg bg-card p-3 text-sm">
                                     <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
-                                    <span className="text-muted-foreground">AquaChat is thinking...</span>
+                                    <span className="text-muted-foreground">Redi is thinking...</span>
                                 </div>
                             </div>
                         )}

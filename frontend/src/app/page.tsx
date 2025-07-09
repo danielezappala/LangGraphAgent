@@ -8,7 +8,7 @@ import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { useState } from 'react';
 
 export default function Home() {
-  const [selectedAgent, setSelectedAgent] = useState<string | undefined>(undefined);
+  const [selectedAgent, setSelectedAgent] = useState<string | undefined>("default_agent");
   return (
     <SidebarProvider>
       <div className="relative flex min-h-screen w-full bg-muted/40">

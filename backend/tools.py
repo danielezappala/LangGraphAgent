@@ -1,5 +1,16 @@
+import os
+from dotenv import load_dotenv
 from langchain_tavily import TavilySearch
 from langchain_core.tools import tool
+
+# Carica le variabili d'ambiente dal file .env
+# Questo assicura che le chiavi API siano disponibili non appena i tool vengono importati
+dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+load_dotenv(dotenv_path=dotenv_path)
+
+# Validazione delle chiavi API
+if not os.getenv("OPENAI_API_KEY") or not os.getenv("TAVILY_API_KEY"):
+    raise RuntimeError("Assicurati che OPENAI_API_KEY e TAVILY_API_KEY siano nel file .env")
 
 import numexpr
 

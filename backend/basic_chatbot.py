@@ -19,8 +19,11 @@ os.environ["TAVILY_API_KEY"] = tavily_key
 from .graph_definition import build_graph
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from .config import SQLITE_PATH
+from .helpers import pretty_print_messages
 
 import asyncio
+import os
+import uuid
 
 def main():
     asyncio.run(async_main())
@@ -37,54 +40,57 @@ async def async_main():
     async with AsyncSqliteSaver.from_conn_string(SQLITE_PATH) as checkpointer:
         
         # Il grafo viene costruito con il checkpointer attivo
-        # The graph is built with the active checkpointer
         graph = await build_graph(checkpointer=checkpointer)
 
-        # Stampa la struttura del grafo sul terminale
-        print("--- Struttura del Grafo ---")
-        graph_structure = graph.get_graph()
-        print(f"Nodi: {list(graph_structure.nodes.keys())}")
-        print("Archi:")
-        for edge in graph_structure.edges:
-            print(f"  - {edge.source} -> {edge.target}")
-        print("---------------------------")
-
-        # Salva l'immagine del grafo per il debug
-        try:
-            graph_png = graph.get_graph().draw_mermaid_png()
-            with open("graph.png", "wb") as f:
-                f.write(graph_png)
-            print("--- Grafo salvato come graph.png ---")
-        except Exception as e:
-            print(f"Errore durante il salvataggio del grafo: {e}")
-
         # Imposta un ID di conversazione per la persistenza
-        # Set a conversation ID for persistence
-        thread_id = "1" # Start or continue conversation with ID "1"
+        thread_id = "1"  # Start or continue conversation with ID "1"
         config = {"configurable": {"thread_id": thread_id}}
 
+        # Stampa la cronologia all'avvio
+        try:
+            if os.path.exists(SQLITE_PATH) and os.path.getsize(SQLITE_PATH) > 0:
+                db_size_bytes = os.path.getsize(SQLITE_PATH)
+                db_size_kb = db_size_bytes / 1024
+                print(f"\n--- Cronologia Conversazione (Dimensione DB: {db_size_kb:.2f} KB) ---")
+                
+                history_state = await graph.aget_state(config)
+                if history_state and history_state.values:
+                    messages = history_state.values.get('messages')
+                    if messages:
+                        pretty_print_messages(messages)
+                else:
+                    print("Nessuna cronologia trovata per questo thread.")
+                print("-----------------------------------------------------------------\n")
+            else:
+                print("\n--- Nessun file di cronologia trovato. Inizio una nuova conversazione. ---\n")
+        except Exception as e:
+            print(f"\nErrore nel caricamento della cronologia: {e}\n")
+
+        # Ciclo di interazione con l'utente
         while True:
             user_input = input(f"\n[{thread_id}] User: ")
             if user_input.lower() in ["exit", "quit", "q"]:
                 print("Goodbye!")
                 break
 
-            # L'input al grafo deve corrispondere alla struttura dello Stato
-            # The input to the graph must match the State structure
+            # Esegui il grafo con l'input dell'utente
             input_state = {"messages": [HumanMessage(content=user_input)]}
-            
-            print("--- Inizio esecuzione Grafo ---")
-            # Usiamo stream_mode='updates' per avere un log dettagliato di ogni nodo eseguito
-            async for update in graph.astream(input_state, config, stream_mode="updates"):
-                for node_name, node_output in update.items():
-                    print(f"[GRAFO] Eseguito nodo: '{node_name}'")
-                    # Prettify e stampa l'output del nodo per chiarezza
-                    if isinstance(node_output, dict) and 'messages' in node_output:
-                        for message in node_output['messages']:
-                            message.pretty_print()
-                    else:
-                        print(f"        Output: {node_output}")
-                print("---")
+            await graph.ainvoke(input_state, config)
+
+            # Recupera lo stato finale e stampa l'ultimo messaggio dell'assistente
+            # Stampa solo l'ultimo blocco di messaggi (la risposta finale)
+            final_state = await graph.aget_state(config)
+            if final_state and final_state.values:
+                all_messages = final_state.values.get('messages', [])
+                # Trova l'indice dell'ultimo HumanMessage
+                last_human_message_index = -1
+                for i in range(len(all_messages) - 1, -1, -1):
+                    if isinstance(all_messages[i], HumanMessage):
+                        last_human_message_index = i
+                        break
+                # Stampa dal penultimo messaggio umano in poi, se esiste
+                if last_human_message_index != -1:
+                    pretty_print_messages(all_messages[last_human_message_index:])
             
             # L'output finale lo recuperiamo invocando lo stato finale del grafo
             final_state = await graph.aget_state(config)
@@ -101,7 +107,7 @@ async def async_main():
                     
                     assistant_label = f"Assistant with {tool_name}" if tool_name else "Assistant"
 
-                    print(f"[{thread_id}] {assistant_label}: {final_messages[-1].content}", flush=True)
+                    # print(f"[{thread_id}] {assistant_label}: {final_messages[-1].content}", flush=True)
 
 
 

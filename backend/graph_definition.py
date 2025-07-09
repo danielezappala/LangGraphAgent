@@ -1,4 +1,6 @@
 import asyncio
+import json
+import pathlib
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -12,7 +14,7 @@ class AgentState(TypedDict):
     messages: Annotated[List[BaseMessage], operator.add]
 
 from .tools import tavily_tool, financial_advice_refusal, human_assistance, general_refusal, calculator
-from .mcp_adapter import load_mcp_tools
+from langchain_mcp_adapters.client import MultiServerMCPClient
 
 async def build_graph(checkpointer):
     """
@@ -21,7 +23,11 @@ async def build_graph(checkpointer):
     """
     # Carica i tool statici e quelli dinamici dal server MCP
     static_tools = [tavily_tool, financial_advice_refusal, human_assistance, general_refusal, calculator]
-    mcp_tools = await load_mcp_tools()
+    # Carica dinamicamente la configurazione del server MCP
+    config_path = pathlib.Path(__file__).parent / "mcp_config.json"
+    mcp_config = json.loads(config_path.read_text())
+    client = MultiServerMCPClient(mcp_config["mcpServers"])
+    mcp_tools = await client.get_tools()
     tools = mcp_tools + static_tools
 
     # Stampa la lista completa dei tool caricati
@@ -59,6 +65,7 @@ async def build_graph(checkpointer):
 
     # 1. Nodo Agente: invoca l'LLM per decidere la prossima azione
     def agent_node(state: AgentState):
+        # print('state', state)
         response = runnable_agent.invoke(state)
         return {"messages": [response]}
 

@@ -31,7 +31,7 @@ export function AppSidebar({ selectedAgent, onAgentChange }: AppSidebarProps) {
               <span>New Chat</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          <AgentsMenu onAgentChange={onAgentChange} selectedAgent={selectedAgent} />
+
         </SidebarMenu>
       </SidebarContent>
     </Sidebar>

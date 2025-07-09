@@ -8,7 +8,8 @@
             ],
             "env": {
                 "OPENAPI_MCP_HEADERS": "{\"Authorization\": \"Bearer ntn_v84203366274KyQZY1lZYF5XQCuD8qAOEovm8Y8EqnDcy2\", \"Notion-Version\": \"2022-06-28\" }"
-            }
+            },
+            "transport": "stdio"
         }
     }
 }

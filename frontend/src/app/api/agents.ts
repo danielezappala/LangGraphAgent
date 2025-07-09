@@ -23,12 +23,20 @@ export async function fetchAgentDetails(agentId: string): Promise<AgentDetails> 
 }
 
 export async function chatWithAgent(agentId: string, message: string): Promise<string> {
-  const res = await fetch(`http://localhost:8000/agents/${agentId}/chat`, {
+  console.log(`Sending message to agent ${agentId}: ${message}`);
+  const res = await fetch(`http://localhost:8000/chat`, { // Puntiamo al nuovo endpoint generico
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify({ 
+      message: message, 
+      thread_id: "1" // Usiamo un thread_id fisso per coerenza con il backend
+    }),
   });
-  if (!res.ok) throw new Error("Chat failed");
+  if (!res.ok) {
+    const errorBody = await res.text();
+    console.error("Chat API error:", res.status, errorBody);
+    throw new Error(`Chat failed with status: ${res.status}`);
+  }
   const data = await res.json();
   return data.response;
 }
