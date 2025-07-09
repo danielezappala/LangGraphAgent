@@ -24,7 +24,7 @@ from typing import Any, Coroutine, Dict, List, Type
 
 from dotenv import load_dotenv
 from langchain.tools import Tool
-from langchain_core.tools import BaseTool
+from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, create_model
 
 from mcp import ClientSession, StdioServerParameters
@@ -137,26 +137,39 @@ def _schema_to_args_model(tool_name: str, schema: Dict[str, Any]) -> Type[BaseMo
 # --------------------------------------------------------------------------- #
 
 
+# Descrizioni migliorate per i tool MCP
+_TOOL_DESCRIPTION_OVERRIDES = {
+    "API-post-search": "Use this tool to search for a page in Notion by its title. Perfect for when the user asks to find or search for a specific page."
+}
+
 def _mcp_tool_to_langchain(defn: Dict[str, Any]) -> BaseTool:
     tool_name = defn.get("name", "unnamed")
-    description = defn.get("description", "No description")
-
+    
+    # Usa una descrizione migliorata se disponibile, altrimenti usa quella di default
+    base_description = _TOOL_DESCRIPTION_OVERRIDES.get(tool_name, defn.get("description", "No description"))
+    
+    # Aggiungi il prefisso "Notion: " per rendere chiaro all'LLM che si tratta di un tool di Notion
+    description = f"Notion: {base_description}"
+    
+    # Log per debug
+    if tool_name == "API-post-search":
+        logger.info("Tool '%s' ha descrizione migliorata: '%s'", tool_name, description)
+    
     ArgsModel = _schema_to_args_model(tool_name, defn.get("parameters", {}))
 
     async def tool_coroutine(**kwargs) -> Any:  # noqa: D401
         logger.debug("⚙️  Invoco %s con %s", tool_name, kwargs)
         try:
             async with get_mcp_session() as session:
-                return await session.invoke(tool_name, **kwargs)
+                return await session.call_tool(tool_name, **kwargs)
         except Exception as exc:
             logger.exception("Errore in %s", tool_name)
             return f"Errore nell'esecuzione di {tool_name}: {exc}"
 
-    return Tool(
+    return StructuredTool.from_function(
         name=tool_name,
         description=description,
-        func=tool_coroutine,
-        coroutine=tool_coroutine,  # Specifichiamo anche la coroutine per l'esecuzione asincrona
+        coroutine=tool_coroutine,  # Usa la coroutine per l'esecuzione asincrona
         args_schema=ArgsModel,
     )
 

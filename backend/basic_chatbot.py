@@ -16,7 +16,7 @@ os.environ["TAVILY_API_KEY"] = tavily_key
 
 # Importa le definizioni del grafo e del checkpointer
 from .graph_definition import build_graph
-from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from .config import SQLITE_PATH
 
 import asyncio
@@ -33,7 +33,7 @@ async def async_main():
     # Il grafo deve essere costruito e usato all'interno del blocco 'with'.
     # SqliteSaver.from_conn_string() returns a context manager.
     # The graph must be built and used within the 'with' block.
-    with SqliteSaver.from_conn_string(SQLITE_PATH) as checkpointer:
+    async with AsyncSqliteSaver.from_conn_string(SQLITE_PATH) as checkpointer:
         
         # Il grafo viene costruito con il checkpointer attivo
         # The graph is built with the active checkpointer
@@ -57,7 +57,7 @@ async def async_main():
             final_state = None
             # Esegui il grafo in streaming per vedere i passaggi intermedi
             # Stream the graph to see intermediate steps
-            for event in graph.stream(input_state, config, stream_mode="values"):
+            async for event in graph.astream(input_state, config, stream_mode="values"):
                 messages = event.get("messages", [])
                 if messages:
                     last_message = messages[-1]
@@ -65,6 +65,7 @@ async def async_main():
                         print(f"[GRAPH] Assistant decided to use a tool...", flush=True)
                     elif isinstance(last_message, ToolMessage):
                         print(f"[GRAPH]   -> Executed tool: '{last_message.name}'", flush=True)
+                        print(f"[GRAPH]   -> Tool output: {last_message.content}", flush=True)
                 final_state = event
 
             # Stampa la risposta finale dell'assistente
@@ -73,6 +74,8 @@ async def async_main():
                 final_messages = final_state.get("messages", [])
                 if final_messages and isinstance(final_messages[-1], AIMessage) and final_messages[-1].content:
                     print(f"[{thread_id}] Assistant: {final_messages[-1].content}", flush=True)
+
+
 
 if __name__ == "__main__":
     # L'adapter MCP usa il suo gestore di segnali per una chiusura pulita.
