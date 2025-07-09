@@ -23,6 +23,13 @@ async def build_graph(checkpointer):
     static_tools = [tavily_tool, financial_advice_refusal, human_assistance, general_refusal, calculator]
     mcp_tools = await load_mcp_tools()
     tools = mcp_tools + static_tools
+
+    # Stampa la lista completa dei tool caricati
+    print("--- Strumenti Caricati ---")
+    for tool in tools:
+        print(f"  - {tool.name}")
+    print("--------------------------")
+
     
     SYSTEM_PROMPT = (
         "You are a helpful assistant with access to a set of tools. Your main goal is to help the user with their requests."

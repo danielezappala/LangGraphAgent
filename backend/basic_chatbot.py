@@ -1,4 +1,5 @@
 import os
+from IPython.display import Image
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
@@ -38,6 +39,24 @@ async def async_main():
         # Il grafo viene costruito con il checkpointer attivo
         # The graph is built with the active checkpointer
         graph = await build_graph(checkpointer=checkpointer)
+
+        # Stampa la struttura del grafo sul terminale
+        print("--- Struttura del Grafo ---")
+        graph_structure = graph.get_graph()
+        print(f"Nodi: {list(graph_structure.nodes.keys())}")
+        print("Archi:")
+        for edge in graph_structure.edges:
+            print(f"  - {edge.source} -> {edge.target}")
+        print("---------------------------")
+
+        # Salva l'immagine del grafo per il debug
+        try:
+            graph_png = graph.get_graph().draw_mermaid_png()
+            with open("graph.png", "wb") as f:
+                f.write(graph_png)
+            print("--- Grafo salvato come graph.png ---")
+        except Exception as e:
+            print(f"Errore durante il salvataggio del grafo: {e}")
 
         # Imposta un ID di conversazione per la persistenza
         # Set a conversation ID for persistence
