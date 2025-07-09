@@ -4,7 +4,9 @@ from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 
 # Carica le variabili d'ambiente
 # Load environment variables
-load_dotenv()
+# Specifica il percorso del file .env nella stessa directory dello script
+dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+load_dotenv(dotenv_path=dotenv_path)
 api_key = os.getenv("OPENAI_API_KEY")
 tavily_key = os.getenv("TAVILY_API_KEY")
 if not api_key or not tavily_key:
@@ -17,8 +19,13 @@ from .graph_definition import build_graph
 from langgraph.checkpoint.sqlite import SqliteSaver
 from .config import SQLITE_PATH
 
+import asyncio
+
 def main():
-    """Main function to run the chatbot CLI."""
+    asyncio.run(async_main())
+
+async def async_main():
+    """Main asynchronous function to run the chatbot CLI."""
     print("LangGraph Chatbot with TavilySearch tool and persistent memory.")
     print("Type 'exit' to quit.")
 
@@ -30,7 +37,7 @@ def main():
         
         # Il grafo viene costruito con il checkpointer attivo
         # The graph is built with the active checkpointer
-        graph = build_graph(checkpointer=checkpointer)
+        graph = await build_graph(checkpointer=checkpointer)
 
         # Imposta un ID di conversazione per la persistenza
         # Set a conversation ID for persistence
@@ -68,4 +75,7 @@ def main():
                     print(f"[{thread_id}] Assistant: {final_messages[-1].content}", flush=True)
 
 if __name__ == "__main__":
+    # L'adapter MCP usa il suo gestore di segnali per una chiusura pulita.
+    # Per evitare conflitti, non usiamo il nostro _run_with_cleanup qui,
+    # ma ci affidiamo al fatto che l'event loop di asyncio gestirà i segnali.
     main()

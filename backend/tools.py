@@ -2,6 +2,7 @@ from langchain_tavily import TavilySearch
 from langchain_core.tools import tool
 
 import numexpr
+
 # Definisci i tool che l'agente può usare
 tavily_tool = TavilySearch(max_results=2)
 
