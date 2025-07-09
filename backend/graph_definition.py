@@ -64,7 +64,6 @@ async def build_graph(checkpointer):
 
     # 1. Nodo Agente: invoca l'LLM per decidere la prossima azione
     def agent_node(state: AgentState):
-        # print('state', state)
         response = runnable_agent.invoke(state)
         return {"messages": [response]}
 
