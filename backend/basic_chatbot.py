@@ -65,7 +65,7 @@ async def async_main():
                         print(f"[GRAPH] Assistant decided to use a tool...", flush=True)
                     elif isinstance(last_message, ToolMessage):
                         print(f"[GRAPH]   -> Executed tool: '{last_message.name}'", flush=True)
-                        print(f"[GRAPH]   -> Tool output: {last_message.content}", flush=True)
+                        #print(f"[GRAPH]   -> Tool output: {last_message.content}", flush=True)
                 final_state = event
 
             # Stampa la risposta finale dell'assistente
@@ -73,7 +73,14 @@ async def async_main():
             if final_state:
                 final_messages = final_state.get("messages", [])
                 if final_messages and isinstance(final_messages[-1], AIMessage) and final_messages[-1].content:
-                    print(f"[{thread_id}] Assistant: {final_messages[-1].content}", flush=True)
+                    tool_name = None
+                    # Controlla se un tool è stato usato prima del messaggio finale dell'AI
+                    if len(final_messages) > 1 and isinstance(final_messages[-2], ToolMessage):
+                        tool_name = final_messages[-2].name
+                    
+                    assistant_label = f"Assistant with {tool_name}" if tool_name else "Assistant"
+
+                    print(f"[{thread_id}] {assistant_label}: {final_messages[-1].content}", flush=True)
 
 
 
