@@ -42,7 +42,20 @@ async def build_graph(checkpointer):
     }
     mcp_config["mcpServers"]["notionApi"]["env"]["OPENAPI_MCP_HEADERS"] = json.dumps(headers)
 
-    client = MultiServerMCPClient(mcp_config["mcpServers"])
+    # Inizializzazione del client MCP in base all'ambiente
+    mcp_server_url = os.getenv("MCP_SERVER_URL")
+
+    if mcp_server_url:
+        print(f"Connessione al server MCP remoto: {mcp_server_url}")
+        # In produzione, ci si connette a un URL remoto
+        client = MultiServerMCPClient(mcp_server_url=mcp_server_url)
+    else:
+        print("Avvio del server MCP locale dalla configurazione.")
+        # In locale, si usa il file di configurazione per avviare il server
+        config_path = os.path.join(os.path.dirname(__file__), "mcp_config.json")
+        client = MultiServerMCPClient(config_path=config_path)
+
+    # Creazione del toolkit MCP
     mcp_tools = await client.get_tools()
     tools = mcp_tools + static_tools
 
