@@ -1,8 +1,9 @@
 {
     "mcpServers": {
         "notionApi": {
-            "command": "npx",
+            "command": "/opt/homebrew/opt/node@20/bin/npx",
             "args": [
+                "/opt/homebrew/opt/node@20/bin/npx",
                 "-y",
                 "@notionhq/notion-mcp-server"
             ],

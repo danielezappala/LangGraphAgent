@@ -79,3 +79,10 @@ Il frontend è un'applicazione React che fornisce l'interfaccia utente per la ch
 - **FastAPI**: Fornisce un server web asincrono, robusto e performante per esporre l'agente tramite un'API REST.
 - **Persistenza**: La cronologia delle conversazioni è salvata in un database SQLite tramite il checkpointer `AsyncSqliteSaver` di LangGraph, garantendo che lo stato venga mantenuto tra le sessioni.
 - **MCP (Model Context Protocol)**: Utilizzato per caricare dinamicamente tool esterni, come quelli per Notion, basandosi su un file di configurazione `mcp_config.json`. Al momento i server MCP vengono lanciati in Windsurf tramite il comando `python -m langgraph.mcp.server`
+Se il server non si avvia prova questa procedura:
+Crea un link simbolico a quel file nella cartella /usr/local/bin/. Copia e incolla questo comando:
+
+Bash
+
+    sudo ln -s "$(which node)" /usr/local/bin/node
+

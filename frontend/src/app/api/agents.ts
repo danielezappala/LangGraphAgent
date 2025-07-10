@@ -24,7 +24,7 @@ export async function fetchAgentDetails(agentId: string): Promise<AgentDetails> 
 
 export async function chatWithAgent(agentId: string, message: string): Promise<string> {
   console.log(`Sending message to agent ${agentId}: ${message}`);
-  const res = await fetch(`http://localhost:9003/chat`, { // Puntiamo al nuovo endpoint generico
+  const res = await fetch(`http://localhost:8000/chat`, { // Puntiamo al nuovo endpoint generico
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ 

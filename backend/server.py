@@ -10,9 +10,9 @@ from typing import List, Optional
 from datetime import datetime, timezone
 
 # Importa i router API
-from .api import history as history_router
+from api import history as history_router
 
-from .graph_definition import build_graph
+from graph_definition import build_graph
 SQLITE_PATH = os.path.join(os.path.dirname(__file__), "chatbot_memory.sqlite")
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langchain_core.messages import HumanMessage

@@ -1,5 +1,7 @@
 import json
+import os
 import pathlib
+from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, BaseMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -11,7 +13,7 @@ from langgraph.graph import StateGraph, END
 class AgentState(TypedDict):
     messages: Annotated[List[BaseMessage], operator.add]
 
-from .tools import tavily_tool, financial_advice_refusal, human_assistance, general_refusal, calculator
+from tools import tavily_tool, financial_advice_refusal, human_assistance, general_refusal, calculator
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 async def build_graph(checkpointer):
@@ -21,9 +23,25 @@ async def build_graph(checkpointer):
     """
     # Carica i tool statici e quelli dinamici dal server MCP
     static_tools = [tavily_tool, financial_advice_refusal, human_assistance, general_refusal, calculator]
-    # Carica dinamicamente la configurazione del server MCP
+    # Carica le variabili d'ambiente dal file .env
+    dotenv_path = pathlib.Path(__file__).parent / '.env'
+    load_dotenv(dotenv_path=dotenv_path)
+
+    # Carica dinamicamente la configurazione del server MCP e inserisci la chiave API di Notion
+    notion_api_key = os.getenv("NOTION_API_KEY")
+    if not notion_api_key:
+        raise RuntimeError("NOTION_API_KEY non trovata nel file .env")
+
     config_path = pathlib.Path(__file__).parent / "mcp_config.json"
     mcp_config = json.loads(config_path.read_text())
+    
+    # Inserisci dinamicamente la chiave API di Notion nella configurazione
+    headers = {
+        "Authorization": f"Bearer {notion_api_key}",
+        "Notion-Version": "2022-06-28"
+    }
+    mcp_config["mcpServers"]["notionApi"]["env"]["OPENAPI_MCP_HEADERS"] = json.dumps(headers)
+
     client = MultiServerMCPClient(mcp_config["mcpServers"])
     mcp_tools = await client.get_tools()
     tools = mcp_tools + static_tools
