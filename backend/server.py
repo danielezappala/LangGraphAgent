@@ -2,7 +2,8 @@ import asyncio
 import os
 import sqlite3
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, status
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
@@ -177,6 +178,19 @@ async def save_conversation(conversation_id: str, messages: List[dict]):
         conn.close()
 
 # Includi i router API
+# Aggiungiamo un gestore di eccezioni globale per il debug
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    # Log dell'errore nel terminale del backend per il debug
+    import traceback
+    print("--- Inizio Traceback Errore Globale ---")
+    traceback.print_exc()
+    print("--- Fine Traceback Errore Globale ---")
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"message": f"Errore interno del server: {exc}"},
+    )
+
 app.include_router(history_router.router)
 
 # --- Esecuzione del server ---

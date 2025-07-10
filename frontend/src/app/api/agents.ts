@@ -11,20 +11,20 @@ export type AgentDetails = AgentSummary & {
 };
 
 export async function fetchAgents(): Promise<AgentSummary[]> {
-  const res = await fetch("http://localhost:9003/agents");
+  const res = await fetch("/agents");
   if (!res.ok) throw new Error("Failed to fetch agents");
   return res.json();
 }
 
 export async function fetchAgentDetails(agentId: string): Promise<AgentDetails> {
-  const res = await fetch(`http://localhost:9003/agents/${agentId}`);
+  const res = await fetch(`/agents/${agentId}`);
   if (!res.ok) throw new Error("Failed to fetch agent details");
   return res.json();
 }
 
 export async function chatWithAgent(agentId: string, message: string): Promise<string> {
   console.log(`Sending message to agent ${agentId}: ${message}`);
-  const res = await fetch(`http://localhost:8000/chat`, { // Puntiamo al nuovo endpoint generico
+  const res = await fetch(`/chat`, { // Puntiamo al nuovo endpoint generico
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ 

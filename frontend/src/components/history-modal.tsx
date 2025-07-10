@@ -1,6 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogDescription,
+  DialogHeader, 
+  DialogTitle, 
+  DialogClose 
+} from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Loader2, X } from "lucide-react";
@@ -46,7 +53,7 @@ export function HistoryModal({
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch('/api/history')
+      const response = await fetch("/api/history")
       .then(async (res) => {
         if (!res.ok) throw new Error("Errore nel caricamento della cronologia");
         return res.json();
@@ -119,8 +126,11 @@ export function HistoryModal({
       <DialogContent className="max-w-3xl w-[90%] max-h-[90vh] flex flex-col">
         <DialogHeader className="flex flex-row items-center justify-between">
           <DialogTitle>
-            {selectedConversation ? 'Dettagli conversazione' : 'Cronologia conversazioni'}
+            {selectedConversation ? 'Dettagli conversazione' : 'Cronologia Conversazioni'}
           </DialogTitle>
+          <DialogDescription>
+            Qui puoi vedere e gestire le tue conversazioni passate.
+          </DialogDescription>
           {/* Solo un pulsante custom per la chiusura */}
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onOpenChange(false)}>
             <X className="h-4 w-4" />
