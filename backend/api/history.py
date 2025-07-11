@@ -1,5 +1,6 @@
 """
 API endpoints for chat history management, compatible with LangGraph's AsyncSqliteSaver.
+v0.1.2
 """
 import logging
 from typing import List, Dict, Any, Optional
