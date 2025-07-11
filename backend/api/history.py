@@ -88,9 +88,11 @@ async def list_conversations():
             conversations = []
             for row in rows:
                 thread_id = row[0]
+                checkpoint_blob = row[1] # Definiamo checkpoint_blob qui per usarlo nel logging dell'eccezione
                 try:
-                    # Decodifica il checkpoint (che è un BLOB JSON)
-                    checkpoint = json.loads(row[1])
+                    # Decodifica il checkpoint
+                    logger.debug(f"Attempting to json.loads checkpoint for thread_id: {thread_id}, blob type: {type(checkpoint_blob)}, blob length: {len(checkpoint_blob) if checkpoint_blob else 0}")
+                    checkpoint = json.loads(checkpoint_blob) # Qui ci aspettiamo l'errore
                     
                     # Estrai l'anteprima del messaggio
                     preview = 'No messages yet'
@@ -109,9 +111,12 @@ async def list_conversations():
                         'last_message_ts': last_message_ts,
                         'preview': preview
                     })
-                except Exception as e:
-                    logger.error(f"Error processing checkpoint {thread_id}: {e}")
-                    continue
+                except json.JSONDecodeError as je: # Catch specifico per JSONDecodeError
+                    logger.error(f"JSONDecodeError for thread_id {thread_id}: {je}. Blob (first 100 bytes): {checkpoint_blob[:100] if checkpoint_blob else 'None'}")
+                    continue # Passa al prossimo checkpoint
+                except Exception as e: # Catch altre eccezioni durante il processamento del checkpoint
+                    logger.error(f"Error processing checkpoint {thread_id}: {e}", exc_info=True)
+                    continue # Passa al prossimo checkpoint
             
             # Converti i dizionari in oggetti Conversation
             conversation_objects = [
@@ -142,7 +147,9 @@ async def get_conversation_detail(thread_id: str):
                 logger.warning(f"No valid checkpoint found for thread_id: {thread_id}")
                 return ConversationDetailResponse(messages=[])
 
+            logger.info(f"Checkpoint found for thread_id: {thread_id}, type: {type(checkpoint_tuple.checkpoint)}")
             messages_data = checkpoint_tuple.checkpoint.get("channel_values", {}).get("messages", [])
+            logger.info(f"Extracted messages_data for thread_id {thread_id}: {messages_data}")
             
             processed_messages = []
             for msg in messages_data:
