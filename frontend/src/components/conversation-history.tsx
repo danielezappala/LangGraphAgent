@@ -2,12 +2,7 @@
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Loader2, Trash2 } from "lucide-react";
-
-interface Conversation {
-  thread_id: string;
-  last_message_ts: string;
-  preview: string;
-}
+import { Conversation, Message } from "@/lib/types";
 
 interface ConversationHistoryProps {
   conversations: Conversation[];

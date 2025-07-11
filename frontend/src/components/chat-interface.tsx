@@ -9,7 +9,8 @@ import { Send, LoaderCircle } from "lucide-react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { RediLogo } from '@/components/icons';
 import { getAiResponse } from '@/app/actions';
-import { ChatMessage, type Message } from '@/components/chat-message';
+import { ChatMessage } from '@/components/chat-message';
+import { Message } from "@/lib/types"; 
 import { generatePromptStarter } from '@/ai/flows/generate-prompt-starter';
 
 const PromptSuggestion = ({ prompt, onSelect }: { prompt: string, onSelect: (prompt: string) => void }) => {
@@ -36,8 +37,8 @@ export function ChatInterface({
   selectedAgent, 
   onAgentChange, 
   selectedConversationId,
-  messages,
-  setMessages,
+  messages: propsMessages,
+  setMessages: propsSetMessages,
   isLoading,
   setIsLoading,
   threadId,
@@ -49,57 +50,52 @@ export function ChatInterface({
     const viewportRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        const loadConversationMessages = async () => {
-            if (!selectedConversationId) {
-                console.log('No conversation selected, clearing messages');
-                setMessages([]);
-                return;
-            }
+        const loadConversationMessages = async (conversationId: string | null) => {
+            if (!conversationId) return;
             
-            console.log(`Loading messages for conversation: ${selectedConversationId}`);
             setIsLoading(true);
-            
             try {
-                const apiUrl = `/api/history/${selectedConversationId}`;
-                console.log(`Fetching from: ${apiUrl}`);
-                
-                const response = await fetch(apiUrl);
-                console.log('Response status:', response.status);
-                
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error(`API Error ${response.status}: ${errorText}`);
-                    throw new Error(`Failed to load conversation messages: ${response.status} ${response.statusText}`);
-                }
-                
+                const response = await fetch(`/api/history/${conversationId}`);
                 const data = await response.json();
-                console.log('API Response data:', data);
+                console.log('Fetched conversation data:', data);
                 
-                const messages = Array.isArray(data.messages) ? data.messages : [];
-                console.log(`Loaded ${messages.length} messages`);
-                
-                setMessages(messages);
-            } catch (error) {
-                console.error('Error loading conversation:', error);
-                setMessages([
-                    { 
-                        role: 'assistant', 
-                        content: 'Sorry, I could not load the conversation history. Please try again later.' 
+                const rawMessages = Array.isArray(data.messages) ? data.messages : [];
+                const mappedMessages = rawMessages
+                  .filter((msg: any) => msg.content && msg.content.trim() !== '')
+                  .map((msg: any) => {
+                    const baseMessage = {
+                      role: msg.type === 'human' ? 'user' : 'assistant',
+                      content: msg.type === 'tool' 
+                        ? `Tool output: ${typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2)}`
+                        : msg.content,
+                      id: msg.id || crypto.randomUUID(),
+                      original: msg // Preserve original message for debugging
+                    };
+                    
+                    if (msg.type === 'tool') {
+                      return { ...baseMessage, tool: true };
                     }
-                ]);
+                    return baseMessage;
+                  });
+                
+                propsSetMessages(mappedMessages);
+                setThreadId(data.thread_id);
+                console.log('Mapped messages:', mappedMessages);
+            } catch (error) {
+                console.error('Failed to load conversation:', error);
             } finally {
                 setIsLoading(false);
             }
         };
 
-        loadConversationMessages();
+        loadConversationMessages(selectedConversationId);
     }, [selectedConversationId]);
 
     useEffect(() => {
         if (viewportRef.current) {
             viewportRef.current.scrollTo({ top: viewportRef.current.scrollHeight, behavior: 'smooth' });
         }
-    }, [messages, isLoading]);
+    }, [propsMessages, isLoading]);
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
@@ -108,14 +104,14 @@ export function ChatInterface({
         const userMessage: Message = { role: 'user', content: input };
         // Add user message and an empty assistant message for the stream
         const assistantMessage: Message = { role: 'assistant', content: '' };
-        setMessages((prevMessages) => [...prevMessages, userMessage, assistantMessage]);
+        propsSetMessages((prevMessages) => [...prevMessages, userMessage, assistantMessage]);
         setInput("");
         setIsLoading(true);
         setPromptSuggestions([]);
 
         try {
             await chatWithAgent(selectedAgent, input, (chunk) => {
-                setMessages(prev => {
+                propsSetMessages(prev => {
                     const lastMessage = prev[prev.length - 1];
                     if (lastMessage.role === 'assistant') {
                         // Append the chunk to the last assistant message
@@ -127,7 +123,7 @@ export function ChatInterface({
             }, threadId); // Pass the current threadId to chatWithAgent
         } catch (error) {
             console.error(error);
-            setMessages(prev => {
+            propsSetMessages(prev => {
                 const lastMessage = prev[prev.length - 1];
                 if (lastMessage.role === 'assistant' && lastMessage.content === '') {
                     // If the placeholder is empty, replace it with an error message
@@ -148,7 +144,7 @@ export function ChatInterface({
             <Card className="flex-1 flex flex-col shadow-lg rounded-xl">
                 <CardContent className="flex-1 p-0 overflow-hidden">
                     <div className="h-full overflow-y-auto p-6 space-y-4" ref={viewportRef}>
-                        {messages.length === 0 && !isLoading && (
+                        {propsMessages.length === 0 && !isLoading && (
                             <div className="flex flex-col items-center justify-center h-full text-center">
                                 <RediLogo className="h-16 w-16 text-primary mb-4" />
                                 <h2 className="text-2xl font-semibold text-foreground">How can I help you today?</h2>
@@ -161,7 +157,13 @@ export function ChatInterface({
                                 )}
                             </div>
                         )}
-                        {messages.map((msg, index) => <ChatMessage key={index} message={msg} />)}
+                        {(() => { console.log('Rendering messages:', propsMessages); return null; })()}  
+                        {propsMessages.map((message, index) => (
+                            <ChatMessage 
+                                key={`message-${index}`} 
+                                message={message} 
+                            />
+                        ))}
                         {isLoading && (
                            <div className="flex items-start gap-4 animate-in fade-in">
                                 <RediLogo className="h-8 w-8 shrink-0 text-primary"/>

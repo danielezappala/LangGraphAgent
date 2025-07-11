@@ -2,9 +2,10 @@
 
 import { Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
 import { AgentsMenu } from "@/components/agents-menu";
-import { MessageSquare } from "lucide-react";
+import type { Message } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ConversationHistory } from "./conversation-history";
+import { MessageSquare } from "lucide-react";
 
 // Definizione del tipo Conversation, allineato con page.tsx e il backend
 interface Conversation {

@@ -7,23 +7,28 @@ import { SidebarProvider, Sidebar, SidebarInset } from '@/components/ui/sidebar'
 import { useState, useEffect, Dispatch, SetStateAction } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { v4 as uuidv4 } from 'uuid';
-
-// Definizione dei tipi
-interface Message {
-  role: 'user' | 'assistant';
-  content: string;
-  id?: string;
-}
-
-interface Conversation {
-  thread_id: string;
-  last_message_ts: string;
-  preview: string;
-}
+import { Message, Conversation } from "@/lib/types";
 
 export default function Home() {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      role: 'user',
+      content: 'Hello, how can you help me today?',
+      id: 'test-user-1'
+    },
+    {
+      role: 'assistant', 
+      content: 'I can help with various tasks. What do you need?',
+      id: 'test-assistant-1'
+    },
+    {
+      role: 'assistant',
+      content: '{"query":"weather in Rome","result":"Sunny, 25°C"}',
+      tool: true,
+      id: 'test-tool-1'
+    }
+  ]);
   const [threadId, setThreadId] = useState<string>('');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
@@ -68,13 +73,16 @@ export default function Home() {
         }
         const data = await response.json();
         // Gestione sicura di data.conversation e data.conversation.messages
-        const msgs = data?.conversation?.messages || [];
+        // const msgs = data?.conversation?.messages || [];
+        const msgs = data?.messages || [];
+
         if (!data?.conversation || msgs.length === 0) {
 
           setEmptyConversationId(selectedConversationId);
         } else {
           setEmptyConversationId(null);
         }
+        console.log('Set messages in page.tsx:', msgs);
         setMessages(msgs);
         setThreadId(selectedConversationId);
       } catch (error) {
