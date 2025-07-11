@@ -22,21 +22,40 @@ export async function fetchAgentDetails(agentId: string): Promise<AgentDetails> 
   return res.json();
 }
 
-export async function chatWithAgent(agentId: string, message: string): Promise<string> {
-  console.log(`Sending message to agent ${agentId}: ${message}`);
-  const res = await fetch(`/chat`, { // Puntiamo al nuovo endpoint generico
+export async function chatWithAgent(
+  agentId: string, 
+  message: string, 
+  onChunk?: (chunk: string) => void,
+  threadId?: string
+): Promise<string> {
+  console.log(`Sending message to agent ${agentId} in thread ${threadId || 'new'}: ${message}`);
+  
+  // Use the non-streaming endpoint for now as we debug streaming issues
+  const requestBody = {
+    message: message,
+    thread_id: threadId || "", // Always include thread_id, even if empty
+  };
+  
+  console.log("Sending chat request:", JSON.stringify(requestBody, null, 2));
+  
+  const res = await fetch(`/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ 
-      message: message, 
-      thread_id: "1" // Usiamo un thread_id fisso per coerenza con il backend
-    }),
+    body: JSON.stringify(requestBody),
   });
+
   if (!res.ok) {
     const errorBody = await res.text();
     console.error("Chat API error:", res.status, errorBody);
     throw new Error(`Chat failed with status: ${res.status}`);
   }
+
   const data = await res.json();
-  return data.response;
+  
+  // If a chunk callback is provided, call it once with the entire content
+  if (onChunk && data.content) {
+    onChunk(data.content);
+  }
+  
+  return data.content || "No response from the agent.";
 }

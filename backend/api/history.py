@@ -1,125 +1,158 @@
 """
-API endpoints for chat history management.
+API endpoints for chat history management, compatible with LangGraph's AsyncSqliteSaver.
 """
-from fastapi import APIRouter, HTTPException, Depends
-from typing import List, Optional
-from datetime import datetime
+import logging
+from typing import List, Dict, Any
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-import sqlite3
-import os
-from datetime import datetime, timezone
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
-router = APIRouter(prefix="/api/history", tags=["history"])
+# --- Configuration ---
+import pathlib
 
-# Modelli Pydantic per le richieste/risposte
-class HistoryMessage(BaseModel):
-    id: int
-    role: str
+# --- Configuration ---
+# Costruisce un percorso assoluto per il database per garantire l'affidabilità.
+DB_PATH = str(pathlib.Path(__file__).parent.parent / "data" / "chatbot_memory.sqlite")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# --- Pydantic Models ---
+class Message(BaseModel):
+    type: str
     content: str
-    timestamp: datetime
 
-class HistoryResponse(BaseModel):
-    conversation_id: str
-    messages: List[HistoryMessage]
+class Conversation(BaseModel):
+    thread_id: str
+    last_message_ts: str
+    preview: str
 
-# Funzione per ottenere la connessione al database
-def get_db_connection():
-    db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "chatbot_memory.sqlite")
-    conn = sqlite3.connect(db_path, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
+class ConversationListResponse(BaseModel):
+    conversations: List[Conversation]
 
-# Endpoint per ottenere la cronologia di una conversazione
-@router.get("/{conversation_id}", response_model=HistoryResponse)
-async def get_conversation_history(conversation_id: str):
-    """
-    Recupera la cronologia di una specifica conversazione.
-    """
+class ConversationDetailResponse(BaseModel):
+    messages: List[Message]
+
+# --- Router Setup ---
+router = APIRouter(prefix="/history", tags=["history"])
+
+# --- Helper Functions ---
+def get_last_human_message_preview(checkpoint: Dict[str, Any]) -> str:
+    """Extracts a preview from the last human message in a checkpoint."""
+    if not checkpoint or 'channel_values' not in checkpoint:
+        return "No messages found"
+    
+    messages = checkpoint.get('channel_values', {}).get('messages', [])
+    human_messages = [m for m in reversed(messages) if isinstance(m, dict) and m.get('type') == 'human']
+    
+    if human_messages:
+        content = human_messages[0].get('content', '')
+        return content[:75] + '...' if len(content) > 75 else content
+    
+    return "No human messages yet"
+
+# --- API Endpoints ---
+@router.get("", response_model=ConversationListResponse, include_in_schema=False)
+@router.get("/", response_model=ConversationListResponse)
+async def list_conversations():
+    """Restituisce la lista di tutte le conversazioni con i loro metadati."""
+    logger.info("Listing all conversations")
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        # Usa una connessione SQL diretta per ottenere la lista delle conversazioni
+        import aiosqlite
+        import json
         
-        # Verifica se la conversazione esiste
-        cursor.execute(
-            "SELECT * FROM conversations WHERE id = ?", 
-            (conversation_id,)
-        )
-        conversation = cursor.fetchone()
-        
-        if not conversation:
-            raise HTTPException(status_code=404, detail="Conversation not found")
-        
-        # Recupera i messaggi della conversazione
-        cursor.execute(
-            """
-            SELECT id, role, content, timestamp 
-            FROM messages 
-            WHERE conversation_id = ? 
-            ORDER BY timestamp ASC
-            """,
-            (conversation_id,)
-        )
-        
-        messages = [
-            {
-                "id": msg["id"],
-                "role": msg["role"],
-                "content": msg["content"],
-                "timestamp": datetime.fromisoformat(msg["timestamp"])
-            }
-            for msg in cursor.fetchall()
-        ]
-        
-        return {
-            "conversation_id": conversation_id,
-            "messages": messages
-        }
-        
-    except sqlite3.Error as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
-    finally:
-        conn.close()
-
-# Endpoint per ottenere l'elenco delle conversazioni recenti
-@router.get("/")
-async def list_conversations(limit: int = 10, offset: int = 0):
-    try:
-        conn = get_db_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                '''
-                SELECT c.id, c.title, c.created_at, 
-                       (SELECT content FROM messages WHERE conversation_id = c.id AND role = 'user' ORDER BY timestamp ASC LIMIT 1) as preview
-                FROM conversations c
-                ORDER BY c.updated_at DESC
-                LIMIT ? OFFSET ?
-                ''',
-                (limit, offset)
-            )
+        async with aiosqlite.connect(DB_PATH) as conn:
+            # Prima esaminiamo lo schema della tabella per debug
+            cursor = await conn.execute("PRAGMA table_info(checkpoints)")
+            rows = await cursor.fetchall()
+            columns = [row[1] for row in rows]
+            logger.info(f"Colonne disponibili nella tabella checkpoints: {columns}")
+            
+            # Query semplificata per ottenere l'ultimo checkpoint per ogni thread
+            # Usiamo thread_id per il raggruppamento e il timestamp per l'ordinamento
+            cursor = await conn.execute("""
+                SELECT thread_id, checkpoint
+                FROM checkpoints
+                WHERE (thread_id, checkpoint_ns) IN (
+                    SELECT thread_id, MAX(checkpoint_ns) as max_ns
+                    FROM checkpoints
+                    GROUP BY thread_id
+                )
+                ORDER BY checkpoint_ns DESC
+            """)
+            rows = await cursor.fetchall()
+            if not rows:
+                logger.info("Nessuna conversazione trovata nel database.")
+                return ConversationListResponse(conversations=[])
+            
             conversations = []
-            for conv in cursor.fetchall():
-                raw_created_at = conv["created_at"]
-                if raw_created_at:
-                    try:
-                        created_at = datetime.fromisoformat(raw_created_at).strftime("%d/%m/%Y %H:%M")
-                    except Exception:
-                        created_at = str(raw_created_at)
-                else:
-                    created_at = ""
-                conversations.append({
-                    "id": conv["id"],
-                    "title": conv["title"] or "Conversazione senza titolo",
-                    "preview": conv["preview"][:100] + ("..." if len(str(conv["preview"])) > 100 else "") if conv["preview"] else "",
-                    "created_at": created_at
-                })
-            return {"conversations": conversations}
-        finally:
-            try:
-                conn.close()
-            except Exception:
-                pass
+            for row in rows:
+                thread_id = row[0]
+                try:
+                    # Decodifica il checkpoint (che è un BLOB JSON)
+                    checkpoint = json.loads(row[1])
+                    
+                    # Estrai l'anteprima del messaggio
+                    preview = 'No messages yet'
+                    if 'messages' in checkpoint and checkpoint['messages']:
+                        first_msg = checkpoint['messages'][0]
+                        if isinstance(first_msg, dict) and 'content' in first_msg:
+                            preview = first_msg['content'][:50] + '...'
+                        else:
+                            preview = str(first_msg)[:50] + '...'
+                    
+                    # Usa l'ID del thread come timestamp
+                    last_message_ts = str(thread_id)
+                    
+                    conversations.append({
+                        'thread_id': thread_id,
+                        'last_message_ts': last_message_ts,
+                        'preview': preview
+                    })
+                except Exception as e:
+                    logger.error(f"Error processing checkpoint {thread_id}: {e}")
+                    continue
+            
+            # Converti i dizionari in oggetti Conversation
+            conversation_objects = [
+                Conversation(
+                    thread_id=conv['thread_id'],
+                    last_message_ts=conv['last_message_ts'],
+                    preview=conv.get('preview', 'No preview available')
+                )
+                for conv in conversations
+            ]
+            
+            return ConversationListResponse(conversations=conversation_objects)
+            
     except Exception as e:
-        import traceback
-        print("[history.py] Errore in list_conversations:", traceback.format_exc())
-        return JSONResponse(content={"conversations": []}, status_code=200)
+        logger.error(f"Unexpected error in list_conversations: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to list conversations: {e}")
+
+@router.get("/{thread_id}", response_model=ConversationDetailResponse)
+async def get_conversation_detail(thread_id: str):
+    """
+    Fetches the full message history for a specific conversation thread.
+    """
+    config = {"configurable": {"thread_id": thread_id}}
+    try:
+        async with AsyncSqliteSaver.from_conn_string(DB_PATH) as checkpointer:
+            checkpoint_tuple = await checkpointer.aget_tuple(config)
+            if not checkpoint_tuple or not checkpoint_tuple.checkpoint:
+                logger.warning(f"No valid checkpoint found for thread_id: {thread_id}")
+                return ConversationDetailResponse(messages=[])
+
+            messages_data = checkpoint_tuple.checkpoint.get("channel_values", {}).get("messages", [])
+            
+            processed_messages = []
+            for msg in messages_data:
+                if hasattr(msg, 'dict'):
+                    processed_messages.append(msg.dict())
+                elif isinstance(msg, dict):
+                    processed_messages.append(msg)
+
+            return ConversationDetailResponse(messages=processed_messages)
+    except Exception as e:
+        logger.error(f"Error fetching details for thread_id {thread_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve conversation details.")
+

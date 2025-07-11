@@ -1,11 +1,10 @@
 {
     "mcpServers": {
         "notionApi": {
-            "command": "/opt/homebrew/opt/node@20/bin/npx",
+            "command": "/bin/bash",
             "args": [
-                "/opt/homebrew/opt/node@20/bin/npx",
-                "-y",
-                "@notionhq/notion-mcp-server"
+                "-c",
+                "npx -y @notionhq/notion-mcp-server"
             ],
             "env": {
                 "OPENAPI_MCP_HEADERS": "{\"Authorization\": \"Bearer ntn_v84203366274KyQZY1lZYF5XQCuD8qAOEovm8Y8EqnDcy2\", \"Notion-Version\": \"2022-06-28\" }"

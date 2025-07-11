@@ -8,7 +8,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Send, LoaderCircle } from "lucide-react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { RediLogo } from '@/components/icons';
-import { HistoryModal } from '@/components/history-modal';
 import { getAiResponse } from '@/app/actions';
 import { ChatMessage, type Message } from '@/components/chat-message';
 import { generatePromptStarter } from '@/ai/flows/generate-prompt-starter';
@@ -24,31 +23,77 @@ const PromptSuggestion = ({ prompt, onSelect }: { prompt: string, onSelect: (pro
 interface ChatInterfaceProps {
   selectedAgent?: string;
   onAgentChange?: (agent: string) => void;
+  selectedConversationId: string | null;
+  messages: Message[];
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+  isLoading: boolean;
+  setIsLoading: (loading: boolean) => void;
+  threadId: string;
+  setThreadId: (id: string) => void;
 }
 
-export function ChatInterface({ selectedAgent, onAgentChange }: ChatInterfaceProps) {
-    const [showHistory, setShowHistory] = useState(false);
-    const [messages, setMessages] = useState<Message[]>([]);
+export function ChatInterface({ 
+  selectedAgent, 
+  onAgentChange, 
+  selectedConversationId,
+  messages,
+  setMessages,
+  isLoading,
+  setIsLoading,
+  threadId,
+  setThreadId
+}: ChatInterfaceProps) {
     const [input, setInput] = useState("");
-    const [isLoading, setIsLoading] = useState(false);
     const [promptSuggestions, setPromptSuggestions] = useState<string[]>([]);
 
     const viewportRef = useRef<HTMLDivElement>(null);
 
-    // useEffect(() => {
-    //     const getSuggestions = async () => {
-    //         try {
-    //             const suggestions = await Promise.all([
-    //                 generatePromptStarter({}),
-    //                 generatePromptStarter({}),
-    //             ]);
-    //             setPromptSuggestions(suggestions.map(s => s.prompt));
-    //         } catch (error) {
-    //             console.error("Failed to generate prompt starters:", error);
-    //         }
-    //     }
-    //     getSuggestions();
-    // }, []);
+    useEffect(() => {
+        const loadConversationMessages = async () => {
+            if (!selectedConversationId) {
+                console.log('No conversation selected, clearing messages');
+                setMessages([]);
+                return;
+            }
+            
+            console.log(`Loading messages for conversation: ${selectedConversationId}`);
+            setIsLoading(true);
+            
+            try {
+                const apiUrl = `/api/history/${selectedConversationId}`;
+                console.log(`Fetching from: ${apiUrl}`);
+                
+                const response = await fetch(apiUrl);
+                console.log('Response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(`API Error ${response.status}: ${errorText}`);
+                    throw new Error(`Failed to load conversation messages: ${response.status} ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('API Response data:', data);
+                
+                const messages = Array.isArray(data.messages) ? data.messages : [];
+                console.log(`Loaded ${messages.length} messages`);
+                
+                setMessages(messages);
+            } catch (error) {
+                console.error('Error loading conversation:', error);
+                setMessages([
+                    { 
+                        role: 'assistant', 
+                        content: 'Sorry, I could not load the conversation history. Please try again later.' 
+                    }
+                ]);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        loadConversationMessages();
+    }, [selectedConversationId]);
 
     useEffect(() => {
         if (viewportRef.current) {
@@ -61,19 +106,38 @@ export function ChatInterface({ selectedAgent, onAgentChange }: ChatInterfacePro
         if (!input.trim() || isLoading || !selectedAgent) return;
 
         const userMessage: Message = { role: 'user', content: input };
-        const newMessages = [...messages, userMessage];
-        setMessages(newMessages);
+        // Add user message and an empty assistant message for the stream
+        const assistantMessage: Message = { role: 'assistant', content: '' };
+        setMessages((prevMessages) => [...prevMessages, userMessage, assistantMessage]);
         setInput("");
         setIsLoading(true);
         setPromptSuggestions([]);
 
         try {
-            const aiResponse = await chatWithAgent(selectedAgent, input);
-            setMessages(prev => [...prev, { role: 'assistant', content: aiResponse }]);
+            await chatWithAgent(selectedAgent, input, (chunk) => {
+                setMessages(prev => {
+                    const lastMessage = prev[prev.length - 1];
+                    if (lastMessage.role === 'assistant') {
+                        // Append the chunk to the last assistant message
+                        const updatedLastMessage = { ...lastMessage, content: lastMessage.content + chunk };
+                        return [...prev.slice(0, -1), updatedLastMessage];
+                    }
+                    return prev;
+                });
+            }, threadId); // Pass the current threadId to chatWithAgent
         } catch (error) {
             console.error(error);
-            const errorMessage: Message = { role: 'assistant', content: "Sorry, I ran into an error. Please try again." };
-            setMessages(prev => [...prev, errorMessage]);
+            setMessages(prev => {
+                const lastMessage = prev[prev.length - 1];
+                if (lastMessage.role === 'assistant' && lastMessage.content === '') {
+                    // If the placeholder is empty, replace it with an error message
+                    const errorMessage: Message = { role: 'assistant', content: "Sorry, I ran into an error. Please try again." };
+                    return [...prev.slice(0, -1), errorMessage];
+                }
+                // Otherwise, add a new error message
+                const errorMessage: Message = { role: 'assistant', content: "Sorry, I ran into an error. Please try again." };
+                return [...prev, errorMessage];
+            });
         } finally {
             setIsLoading(false);
         }
@@ -81,15 +145,6 @@ export function ChatInterface({ selectedAgent, onAgentChange }: ChatInterfacePro
 
     return (
         <div className="flex-1 flex flex-col h-full">
-            {/* Pulsante History in alto */}
-            {selectedAgent && (
-                <div className="flex justify-end mb-2">
-                    <Button variant="outline" size="sm" onClick={() => setShowHistory(true)}>
-                        Cronologia
-                    </Button>
-                </div>
-            )}
-            <HistoryModal agentId={selectedAgent || ''} open={showHistory} onOpenChange={setShowHistory} />
             <Card className="flex-1 flex flex-col shadow-lg rounded-xl">
                 <CardContent className="flex-1 p-0 overflow-hidden">
                     <div className="h-full overflow-y-auto p-6 space-y-4" ref={viewportRef}>

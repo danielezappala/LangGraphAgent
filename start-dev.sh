@@ -1,27 +1,44 @@
 #!/bin/bash
 
-# Funzione per terminare i processi figli
+# Function to clean up child processes on exit
 cleanup() {
     echo "Stopping child processes..."
-    # Invia il segnale SIGTERM a tutti i processi nello stesso gruppo di processi
-    kill -TERM 0
+    # Send SIGTERM to all processes in the current process group
+    pkill -P $$
     wait
     echo "All processes stopped."
 }
 
-# Imposta la trap per catturare l'uscita (Ctrl+C, chiusura del terminale, ecc.)
-trap cleanup INT TERM EXIT
+# Set a trap to run the cleanup function on script exit
+trap cleanup EXIT
 
-# Imposta l'opzione per uscire immediatamente se un comando fallisce
-set -e
+# Check if the virtual environment directory exists
+if [ ! -d "venv" ]; then
+    echo "Virtual environment 'venv' not found. Please run the setup script first."
+    exit 1
+fi
 
-# Avvia il backend in background
-echo "Starting backend..."
-(cd backend && source ../venv/bin/activate && python server.py) &
+# Check if the frontend node_modules directory exists
+if [ ! -d "frontend/node_modules" ]; then
+    echo "Frontend dependencies 'node_modules' not found. Please run the setup script first."
+    exit 1
+fi
 
-# Avvia il frontend in primo piano
-echo "Starting frontend..."
+# Activate Python virtual environment
+source venv/bin/activate
+
+# Set PYTHONPATH to the project root directory to ensure correct module resolution
+export PYTHONPATH=$(pwd)
+
+# Start the backend server in the background
+echo "Starting backend server on http://localhost:8000..."
+python -m uvicorn backend.server:app --host 0.0.0.0 --port 8000 --reload &
+BACKEND_PID=$!
+
+# Start the frontend server in the foreground
+echo "Starting frontend server on http://localhost:3000..."
 (cd frontend && npm run dev)
+FRONTEND_PID=$!
 
-# Attendi che tutti i processi in background terminino (non verrà mai raggiunto in questo script)
-wait
+# Wait for all background processes to finish (which they won't, until the script is terminated)
+wait $BACKEND_PID $FRONTEND_PID

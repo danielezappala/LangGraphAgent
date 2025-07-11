@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-dotenv
+langgraph
+langchain
+langchain-core
+langchain-openai
+langchain-community
+langchain-mcp-adapters
+aiosqlite
+langgraph-checkpoint-sqlite
+orjson>=3.9.0
+msgpack>=1.0.0
