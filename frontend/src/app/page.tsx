@@ -129,27 +129,72 @@ export default function Home() {
     setEmptyConversationId(null);
   };
 
-  const handleDeleteConversation = async (id: string) => {
+  const handleDeleteConversation = async (thread_id: string) => {
     try {
-      const response = await fetch(`/api/history/${id}`, {
-        method: 'DELETE',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to delete conversation.');
+      console.log('Attempting to delete conversation with ID:', thread_id);
+      
+      // Make sure we have a valid thread_id
+      if (!thread_id || typeof thread_id !== 'string' || thread_id.trim() === '') {
+        console.error('Invalid thread_id provided:', thread_id);
+        throw new Error('ID conversazione non valido: ' + thread_id);
       }
+
+      // Log the current conversations for debugging
+      console.log('Current conversations before deletion:', conversations);
+      
+      // Check if the conversation exists in the current list
+      const conversationExists = conversations.some(conv => conv.thread_id === thread_id);
+      if (!conversationExists) {
+        console.error('Conversation not found in current list:', thread_id);
+        throw new Error('Conversazione non trovata nella lista corrente');
+      }
+
+      // Use the full URL to the backend
+      const backendUrl = new URL(`/api/history/${encodeURIComponent(thread_id)}/`, window.location.origin);
+      
+      // Log the URL for debugging
+      console.log('Deleting conversation with URL:', backendUrl.toString());
+      
+      const response = await fetch(backendUrl.toString(), {
+        method: 'DELETE',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+        credentials: 'same-origin',
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Delete error response:', response.status, errorText);
+        let errorMessage = 'Impossibile eliminare la conversazione';
+        
+        try {
+          const errorData = JSON.parse(errorText);
+          errorMessage = errorData.detail || errorMessage;
+        } catch (e) {
+          // If we can't parse the error as JSON, use the raw text
+          errorMessage = errorText || errorMessage;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      // Update the conversations list by filtering out the deleted one
+      const updatedConversations = conversations.filter((c: Conversation) => c.thread_id !== thread_id);
+      setConversations(updatedConversations);
+
+      // If the deleted conversation was the selected one, clear the chat
+      if (selectedConversationId === thread_id) {
+        setSelectedConversationId(null);
+        setMessages([]);
+        setThreadId(uuidv4());
+      }
+
       toast({
         title: 'Successo',
         description: 'Conversazione eliminata con successo.',
       });
-      // Aggiorna la lista delle conversazioni
-      const updatedConversations = conversations.filter((c: Conversation) => c.thread_id !== id);
-      setConversations(updatedConversations);
-      // Se la conversazione eliminata era quella selezionata, pulisci la chat
-      if (selectedConversationId === id) {
-        setSelectedConversationId(null);
-        setMessages([]);
-        setThreadId(uuidv4()); // Preparati per una nuova chat
-      }
     } catch (error) {
       console.error(error);
       toast({
