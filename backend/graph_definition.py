@@ -8,7 +8,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 
-from tools import tavily_tool, financial_advice_refusal, human_assistance, general_refusal, calculator
+from tools import search_web as tavily_tool, general_refusal as financial_advice_refusal, human_assistance, general_refusal, calculator
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
 # Definisce lo stato del grafo. 

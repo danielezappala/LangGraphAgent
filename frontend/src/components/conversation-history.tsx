@@ -45,35 +45,35 @@ export function ConversationHistory({
           ) : !isLoading && conversations.length > 0 ? (
             <div className="space-y-1">
               {conversations.map((conv) => (
-                <Button
+                <div 
                   key={conv.thread_id}
-                  variant="ghost"
-                  className="w-full justify-start text-left h-auto py-2"
+                  className="relative group w-full text-left py-2 px-4 rounded-md hover:bg-accent hover:text-accent-foreground cursor-pointer"
                   onClick={() => onSelectConversation(conv.thread_id)}
                   title={conv.preview}
                 >
-                  <div className="truncate">
+                  <div className="pr-8">
                     <div className="font-medium text-sm whitespace-normal">
                       {conv.preview || "Nessuna anteprima"}
                     </div>
-                    <div className="flex justify-between items-center w-full">
-                      <span className="text-xs text-muted-foreground pt-1">
-                        {new Date(conv.last_message_ts).toLocaleString('it-IT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 shrink-0"
-                        onClick={(e) => { 
-                          e.stopPropagation(); 
-                          onDeleteConversation(conv.thread_id); 
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 text-muted-foreground hover:text-red-500" />
-                      </Button>
+                    <div className="text-xs text-muted-foreground pt-1">
+                      {new Date(conv.last_message_ts).toLocaleString('it-IT', { 
+                        day: '2-digit', 
+                        month: 'short', 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                      })}
                     </div>
                   </div>
-                </Button>
+                  <button
+                    className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 p-0 m-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full hover:bg-accent/50"
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      onDeleteConversation(conv.thread_id); 
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4 text-muted-foreground hover:text-red-500" />
+                  </button>
+                </div>
               ))}
             </div>
           ) : (

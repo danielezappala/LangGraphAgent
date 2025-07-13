@@ -10,7 +10,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { RediLogo } from '@/components/icons';
 import { getAiResponse } from '@/app/actions';
 import { ChatMessage } from '@/components/chat-message';
-import { Message } from "@/lib/types"; 
+import { Message } from "@/lib/types";
 import { generatePromptStarter } from '@/ai/flows/generate-prompt-starter';
 
 const PromptSuggestion = ({ prompt, onSelect }: { prompt: string, onSelect: (prompt: string) => void }) => {
@@ -22,74 +22,32 @@ const PromptSuggestion = ({ prompt, onSelect }: { prompt: string, onSelect: (pro
 }
 
 interface ChatInterfaceProps {
-  selectedAgent?: string;
-  onAgentChange?: (agent: string) => void;
-  selectedConversationId: string | null;
-  messages: Message[];
-  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
-  isLoading: boolean;
-  setIsLoading: (loading: boolean) => void;
-  threadId: string;
-  setThreadId: (id: string) => void;
+    selectedAgent?: string;
+    onAgentChange?: (agent: string) => void;
+    selectedConversationId: string | null;
+    messages: Message[];
+    setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
+    isLoading: boolean;
+    setIsLoading: (loading: boolean) => void;
+    threadId: string;
+    setThreadId: (id: string) => void;
 }
 
-export function ChatInterface({ 
-  selectedAgent, 
-  onAgentChange, 
-  selectedConversationId,
-  messages: propsMessages,
-  setMessages: propsSetMessages,
-  isLoading,
-  setIsLoading,
-  threadId,
-  setThreadId
+export function ChatInterface({
+    selectedAgent,
+    onAgentChange,
+    selectedConversationId,
+    messages: propsMessages,
+    setMessages: propsSetMessages,
+    isLoading,
+    setIsLoading,
+    threadId,
+    setThreadId
 }: ChatInterfaceProps) {
     const [input, setInput] = useState("");
     const [promptSuggestions, setPromptSuggestions] = useState<string[]>([]);
 
     const viewportRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        const loadConversationMessages = async (conversationId: string | null) => {
-            if (!conversationId) return;
-            
-            setIsLoading(true);
-            try {
-                const response = await fetch(`/api/history/${conversationId}`);
-                const data = await response.json();
-                console.log('Fetched conversation data:', data);
-                
-                const rawMessages = Array.isArray(data.messages) ? data.messages : [];
-                const mappedMessages = rawMessages
-                  .filter((msg: any) => msg.content && msg.content.trim() !== '')
-                  .map((msg: any) => {
-                    const baseMessage = {
-                      role: msg.type === 'human' ? 'user' : 'assistant',
-                      content: msg.type === 'tool' 
-                        ? `Tool output: ${typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2)}`
-                        : msg.content,
-                      id: msg.id || crypto.randomUUID(),
-                      original: msg // Preserve original message for debugging
-                    };
-                    
-                    if (msg.type === 'tool') {
-                      return { ...baseMessage, tool: true };
-                    }
-                    return baseMessage;
-                  });
-                
-                propsSetMessages(mappedMessages);
-                setThreadId(data.thread_id);
-                console.log('Mapped messages:', mappedMessages);
-            } catch (error) {
-                console.error('Failed to load conversation:', error);
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        loadConversationMessages(selectedConversationId);
-    }, [selectedConversationId]);
 
     useEffect(() => {
         if (viewportRef.current) {
@@ -101,38 +59,93 @@ export function ChatInterface({
         e.preventDefault();
         if (!input.trim() || isLoading || !selectedAgent) return;
 
-        const userMessage: Message = { role: 'user', content: input };
-        // Add user message and an empty assistant message for the stream
-        const assistantMessage: Message = { role: 'assistant', content: '' };
-        propsSetMessages((prevMessages) => [...prevMessages, userMessage, assistantMessage]);
+        const userMessage: Message = { role: 'user', content: input, id: crypto.randomUUID() };
+        propsSetMessages((prevMessages) => [...prevMessages, userMessage]);
         setInput("");
         setIsLoading(true);
         setPromptSuggestions([]);
 
         try {
-            await chatWithAgent(selectedAgent, input, (chunk) => {
-                propsSetMessages(prev => {
-                    const lastMessage = prev[prev.length - 1];
-                    if (lastMessage.role === 'assistant') {
-                        // Append the chunk to the last assistant message
-                        const updatedLastMessage = { ...lastMessage, content: lastMessage.content + chunk };
-                        return [...prev.slice(0, -1), updatedLastMessage];
+            await chatWithAgent(selectedAgent, input, (rawChunk) => {
+                if (!rawChunk) return;
+                try {
+                    const parsedData = JSON.parse(rawChunk);
+                    // Handle both direct and nested message formats
+                    const messageData = parsedData.message || parsedData;
+
+                    if (!messageData || !messageData.type) {
+                        console.warn("Received chunk without valid message data:", parsedData);
+                        return;
                     }
-                    return prev;
-                });
-            }, threadId); // Pass the current threadId to chatWithAgent
-        } catch (error) {
-            console.error(error);
-            propsSetMessages(prev => {
-                const lastMessage = prev[prev.length - 1];
-                if (lastMessage.role === 'assistant' && lastMessage.content === '') {
-                    // If the placeholder is empty, replace it with an error message
-                    const errorMessage: Message = { role: 'assistant', content: "Sorry, I ran into an error. Please try again." };
-                    return [...prev.slice(0, -1), errorMessage];
+                    
+                    propsSetMessages(prev => {
+                        let newMessages = [...prev];
+                        
+                        let lastMessage = newMessages.length > 0 ? newMessages[newMessages.length - 1] : null;
+                        if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content === '') {
+                            newMessages.pop();
+                        }
+                        
+                        lastMessage = newMessages.length > 0 ? newMessages[newMessages.length - 1] : null;
+
+                        if (messageData.type === "tool_result") {
+                            // Only add the tool message if there's content
+                            if (messageData.content) {
+                                newMessages.push({
+                                    role: 'assistant',
+                                    tool: true,
+                                    tool_name: messageData.tool_name,
+                                    content: messageData.content,
+                                    id: messageData.id || crypto.randomUUID()
+                                });
+                            }
+
+                        } else if (messageData.type === "text") {
+                            // Skip empty content chunks
+                            if (!messageData.content) {
+                                return newMessages;
+                            }
+                            
+                            // If the last message is an assistant message, append to it
+                            if (lastMessage && lastMessage.role === 'assistant' && !lastMessage.tool) {
+                                lastMessage.content = (lastMessage.content || '') + messageData.content;
+                                lastMessage.id = messageData.id || lastMessage.id || crypto.randomUUID();
+                            } else {
+                                // Otherwise, create a new message
+                                newMessages.push({
+                                    role: 'assistant',
+                                    content: messageData.content,
+                                    id: messageData.id || crypto.randomUUID(),
+                                });
+                            }
+                        
+                        } else if (messageData.type === "error") {
+                            newMessages.push({
+                                role: 'assistant',
+                                content: `Error: ${messageData.content}`,
+                                id: messageData.id || crypto.randomUUID()
+                            });
+                        
+                        } else if (messageData.type === "end") {
+                            console.log("Stream ended by 'end' chunk.");
+                        }
+                        
+                        return newMessages;
+                    });
+
+                } catch (e) {
+                    console.error("ChatInterface: Failed to parse or process stream chunk:", rawChunk, e);
                 }
-                // Otherwise, add a new error message
-                const errorMessage: Message = { role: 'assistant', content: "Sorry, I ran into an error. Please try again." };
-                return [...prev, errorMessage];
+            }, threadId);
+        } catch (error) {
+            console.error("ChatInterface: Error in handleSubmit call to chatWithAgent", error);
+            propsSetMessages(prev => {
+                const newMessages = [...prev];
+                if (newMessages.length > 0 && newMessages[newMessages.length - 1].role === 'assistant' && newMessages[newMessages.length - 1].content === '') {
+                    newMessages.pop();
+                }
+                newMessages.push({ role: 'assistant', content: "Sorry, an error occurred while connecting to the agent.", id: crypto.randomUUID() });
+                return newMessages;
             });
         } finally {
             setIsLoading(false);
@@ -149,23 +162,23 @@ export function ChatInterface({
                                 <RediLogo className="h-16 w-16 text-primary mb-4" />
                                 <h2 className="text-2xl font-semibold text-foreground">How can I help you today?</h2>
                                 {promptSuggestions.length > 0 && (
-                                  <div className="w-full flex flex-col sm:flex-row sm:flex-wrap gap-4 mt-8 max-w-3xl">
-                                      {promptSuggestions.map((prompt, i) => (
-                                          <PromptSuggestion key={i} prompt={prompt} onSelect={(p) => setInput(p)} />
-                                      ))}
-                                  </div>
+                                    <div className="w-full flex flex-col sm:flex-row sm:flex-wrap gap-4 mt-8 max-w-3xl">
+                                        {promptSuggestions.map((prompt, i) => (
+                                            <PromptSuggestion key={i} prompt={prompt} onSelect={(p) => setInput(p)} />
+                                        ))}
+                                    </div>
                                 )}
                             </div>
                         )}
-                        {(() => { console.log('Rendering messages:', propsMessages); return null; })()}  
+                        {(() => { console.log('Rendering messages:', propsMessages); return null; })()}
                         {propsMessages.map((message, index) => (
-                            <ChatMessage 
-                                key={`message-${index}`} 
-                                message={message} 
+                            <ChatMessage
+                                key={`message-${index}`}
+                                message={message}
                             />
                         ))}
                         {isLoading && (
-                           <div className="flex items-start gap-4 animate-in fade-in">
+                            <div className="flex items-start gap-4 animate-in fade-in">
                                 <RediLogo className="h-8 w-8 shrink-0 text-primary"/>
                                 <div className="flex items-center space-x-2 rounded-lg bg-card p-3 text-sm">
                                     <LoaderCircle className="h-5 w-5 animate-spin text-primary" />

@@ -72,19 +72,43 @@ export default function Home() {
           throw new Error('Failed to load conversation history.');
         }
         const data = await response.json();
-        // Gestione sicura di data.conversation e data.conversation.messages
-        // const msgs = data?.conversation?.messages || [];
-        const msgs = data?.messages || [];
+        let rawMessagesSource = [];
 
-        if (!data?.conversation || msgs.length === 0) {
+        if (data && typeof data.messages === 'object' && data.messages !== null) {
+          if (Array.isArray(data.messages)) {
+            rawMessagesSource = data.messages;
+          } else {
+            rawMessagesSource = Object.values(data.messages);
+          }
+        }
+        
+        const transformedMsgs = rawMessagesSource
+          .filter((msg: any) => msg && msg.content && (typeof msg.content === 'string' ? msg.content.trim() !== '' : true))
+          .map((msg: any) => {
+            const baseMessage: Message = {
+              role: msg.type === 'human' ? 'user' : 'assistant',
+              content: msg.type === 'tool' 
+                ? (typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2))
+                : msg.content,
+              id: msg.id || uuidv4(), // Use uuidv4 for id generation if not present
+              // @ts-ignore 
+              original: msg 
+            };
+            if (msg.type === 'tool') {
+              baseMessage.tool = true;
+            }
+            return baseMessage;
+          });
 
+        if (!data?.conversation || transformedMsgs.length === 0) {
           setEmptyConversationId(selectedConversationId);
         } else {
           setEmptyConversationId(null);
         }
-        console.log('Set messages in page.tsx:', msgs);
-        setMessages(msgs);
-        setThreadId(selectedConversationId);
+        console.log('Set messages in page.tsx (transformed):', transformedMsgs);
+        setMessages(transformedMsgs);
+        // data.thread_id è più corretto se disponibile, altrimenti selectedConversationId
+        setThreadId(data.thread_id || selectedConversationId); 
       } catch (error) {
         console.error(error);
         setMessages([

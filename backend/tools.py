@@ -14,21 +14,11 @@ if not os.getenv("OPENAI_API_KEY") or not os.getenv("TAVILY_API_KEY"):
 
 import numexpr
 
-# Definisci i tool che l'agente può usare
-tavily_tool = TavilySearch(max_results=2)
-
 @tool
-def financial_advice_refusal(query: str) -> str:
-    """
-    Use this tool when the user asks for financial advice, investment suggestions, 
-    stock picks, or any topic related to personal finance where providing advice would be 
-    inappropriate or risky. This tool provides a standard refusal response.
-    The input query should be the user's original question.
-    """
-    return (
-        "Non sono un consulente finanziario e non posso fornire consigli di investimento. "
-        "Per decisioni finanziarie importanti, è sempre meglio consultare un professionista qualificato."
-    )
+def search_web(query: str) -> str:
+    """Searches the web for information about a given query."""
+    tavily = TavilySearch(max_results=2)
+    return tavily.invoke(query)
 
 # 2. Human Assistance Tool
 @tool
