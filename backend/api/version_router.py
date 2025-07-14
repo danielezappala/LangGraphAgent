@@ -11,7 +11,7 @@ from version import get_version
 
 router = APIRouter()
 
-@router.get("/version")
+@router.get("/")
 async def get_api_version():
     """
     Return the current version information for the API.

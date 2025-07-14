@@ -11,6 +11,7 @@ import sys
 # Import dei moduli API
 from api import chat, ping, history
 from api.version_router import router as version_router
+from api.config import router as config_router
 
 # Import relativi standard per un'applicazione FastAPI
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
@@ -49,23 +50,16 @@ async def lifespan(app: FastAPI):
     print("Server in fase di spegnimento.")
 
 app = FastAPI(
-    title="LangGraph Chatbot Server",
-    description="API server for the LangGraph chatbot with Notion integration.",
+    title="LangGraph Agent API",
+    description="API for the LangGraph Agent application.",
     version=__version__,
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
-# --- Configurazione CORS ---
-# Definisce le origini autorizzate a effettuare richieste al backend.
-# Questo è fondamentale per permettere al frontend (in esecuzione su localhost:9002) di comunicare.
-origins = [
-    "http://localhost:9002",
-    "http://127.0.0.1:9002",
-]
-
+# Configura CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # Allow all origins for development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -73,18 +67,21 @@ app.add_middleware(
 
 # --- Configurazione e Inclusione dei Router API ---
 
-# Creiamo un router principale per l'API con il prefisso /api
-api_router = APIRouter(prefix="/api")
-
-# Includiamo i router specifici nel router principale
-# Questo approccio (router nidificati) è la best practice per evitare conflitti.
-api_router.include_router(ping.router)       # ping.py non ha un prefisso, quindi la rotta sarà /api/ping
-api_router.include_router(history.router)     # history.py ha il prefisso /history
-api_router.include_router(chat.router)        # chat.py ha il prefisso /chat
-api_router.include_router(version_router)     # version_router.py ha il prefisso /version
-
-# Infine, includiamo il router principale nell'applicazione
-app.include_router(api_router)
+# Includiamo i router specifici con i loro prefissi
+try:
+    # Includi i router direttamente nell'app con i loro prefissi completi
+    app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
+    app.include_router(ping.router, prefix="/api/ping", tags=["health"])
+    app.include_router(history.router, prefix="/api/history", tags=["history"])
+    app.include_router(version_router, prefix="/api/version", tags=["version"])
+    
+    # Config router is already mounted at /api/config in the router itself
+    app.include_router(config_router, prefix="/api", tags=["config"])
+    
+    print("Router inclusi con successo.")
+except Exception as e:
+    print(f"Errore durante l'inclusione dei router: {e}")
+    raise
 
 # Gestore globale delle eccezioni
 @app.exception_handler(Exception)

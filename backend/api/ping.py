@@ -2,9 +2,11 @@ import sys
 from fastapi import APIRouter
 from fastapi.responses import PlainTextResponse
 
-router = APIRouter(tags=["ping"])
+# No prefix in the router since we'll add it in server.py
+router = APIRouter(prefix="", tags=["ping"])
 
-@router.get("/ping")
+@router.get("", include_in_schema=False)
+@router.get("/")
 async def ping():
     """A simple ping endpoint to check if the server is running."""
     print("Ping endpoint called successfully")

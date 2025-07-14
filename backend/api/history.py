@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+import os
 
 # --- Configuration ---
 import pathlib
@@ -35,7 +36,7 @@ class ConversationDetailResponse(BaseModel):
     messages: List[Message]
 
 # --- Router Setup ---
-router = APIRouter(prefix="/history", tags=["history"])
+router = APIRouter(prefix="", tags=["history"])
 
 # --- Helper Functions ---
 def get_last_human_message_preview(checkpoint: Dict[str, Any]) -> str:
@@ -92,6 +93,13 @@ def get_last_human_message_preview(checkpoint: Dict[str, Any]) -> str:
 async def list_conversations():
     """Restituisce la lista di tutte le conversazioni con i loro metadati."""
     logger.info("Listing all conversations")
+    logger.debug(f"Database path: {DB_PATH}")
+    logger.debug(f"Current working directory: {os.getcwd()}")
+    logger.debug(f"File exists: {os.path.exists(DB_PATH)}")
+    logger.debug(f"File permissions: {os.stat(DB_PATH).st_mode:o}")
+    
+    # Log environment variables for debugging
+    logger.debug(f"Environment variables: {os.environ.get('DATABASE_URL', 'Not set')}")
     conversations_data = []
     try:
         # 1. Get all thread_ids and their latest checkpoint_ns (which is used as the timestamp)
