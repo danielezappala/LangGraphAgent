@@ -1,7 +1,7 @@
 "use client";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
-import { Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2, History } from "lucide-react";
 import { Conversation, Message } from "@/lib/types";
 
 interface ConversationHistoryProps {
@@ -18,25 +18,46 @@ export function ConversationHistory({
   onDeleteConversation 
 }: ConversationHistoryProps) {
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (timestamp: string | number | null | undefined) => {
+    if (!timestamp) return 'No date';
+    
     try {
-      const date = new Date(dateString);
-      return date.toLocaleString('it-IT', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
+      // Convert the timestamp to a number if it's a string
+      const ts = typeof timestamp === 'string' ? parseInt(timestamp, 10) : timestamp;
+      
+      // If the timestamp is in nanoseconds (from the backend), convert to milliseconds
+      const isNanoseconds = ts > 1e16; // If timestamp is greater than 10^16, it's likely in nanoseconds
+      const date = isNanoseconds 
+        ? new Date(ts / 1000000) // Convert nanoseconds to milliseconds
+        : new Date(ts);
+      
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        console.error('Invalid date:', timestamp);
+        return 'Invalid date';
+      }
+      
+      // Format the date in a user-friendly way
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        hour12: false
       });
     } catch (e) {
-      return dateString;
+      console.error('Error formatting date:', e);
+      return 'Invalid date';
     }
   };
 
   return (
     <Accordion type="single" collapsible className="w-full">
       <AccordionItem value="item-1">
-        <AccordionTrigger>Conversazioni Passate</AccordionTrigger>
+        <AccordionTrigger className="[&>svg]:h-4 [&>svg]:w-4">
+          <History className="mr-2" />
+          <span>Chat History</span>
+        </AccordionTrigger>
         <AccordionContent>
           {isLoading ? (
             <div className="flex justify-center py-4">
@@ -53,15 +74,10 @@ export function ConversationHistory({
                 >
                   <div className="pr-8">
                     <div className="font-medium text-sm whitespace-normal">
-                      {conv.preview || "Nessuna anteprima"}
+                      {conv.preview || "No preview"}
                     </div>
                     <div className="text-xs text-muted-foreground pt-1">
-                      {new Date(conv.last_message_ts).toLocaleString('it-IT', { 
-                        day: '2-digit', 
-                        month: 'short', 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                      })}
+                      {formatDate(conv.last_message_ts)}
                     </div>
                   </div>
                   <button
@@ -77,7 +93,7 @@ export function ConversationHistory({
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground p-2">Nessuna conversazione passata.</p>
+            <p className="text-sm text-muted-foreground p-2">No previous conversations</p>
           )}
         </AccordionContent>
       </AccordionItem>

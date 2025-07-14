@@ -4,7 +4,7 @@ import { Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, S
 import { AgentsMenu } from "@/components/agents-menu";
 import type { Message } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { ConversationHistory } from "./conversation-history";
+import { ConversationHistory } from "./conversation-history-debug";
 import { MessageSquare } from "lucide-react";
 
 // Definizione del tipo Conversation, allineato con page.tsx e il backend
@@ -40,14 +40,15 @@ export function AppSidebar({
         </div>
       </SidebarHeader>
       <SidebarContent className="flex flex-col">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton tooltip="New Chat" isActive onClick={onNewChat}>
-              <MessageSquare />
-              <span>New Chat</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <div className="p-2">
+          <button
+            onClick={onNewChat}
+            className="w-full text-left py-2 px-4 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-2"
+          >
+            <MessageSquare className="h-4 w-4" />
+            <span>New Chat</span>
+          </button>
+        </div>
         <div className="flex-1 overflow-y-auto p-2">
           <ConversationHistory 
             conversations={conversations}

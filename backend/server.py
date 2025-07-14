@@ -10,11 +10,12 @@ import sys
 
 # Import dei moduli API
 from api import chat, ping, history
+from api.version_router import router as version_router
 
 # Import relativi standard per un'applicazione FastAPI
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
-from _version import __version__
+from version import __version__
 from graph_definition import build_graph
 
 # --- Configurazione dell'applicazione FastAPI ---
@@ -77,9 +78,10 @@ api_router = APIRouter(prefix="/api")
 
 # Includiamo i router specifici nel router principale
 # Questo approccio (router nidificati) è la best practice per evitare conflitti.
-api_router.include_router(ping.router) # ping.py non ha un prefisso, quindi la rotta sarà /api/ping
-api_router.include_router(history.router) # history.py ha il prefisso /history
-api_router.include_router(chat.router)    # chat.py ha il prefisso /chat
+api_router.include_router(ping.router)       # ping.py non ha un prefisso, quindi la rotta sarà /api/ping
+api_router.include_router(history.router)     # history.py ha il prefisso /history
+api_router.include_router(chat.router)        # chat.py ha il prefisso /chat
+api_router.include_router(version_router)     # version_router.py ha il prefisso /version
 
 # Infine, includiamo il router principale nell'applicazione
 app.include_router(api_router)

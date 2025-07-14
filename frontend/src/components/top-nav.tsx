@@ -5,6 +5,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogOut, Settings, User } from "lucide-react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { VersionDisplay } from "./version-display";
 
 export function TopNav() {
   return (
@@ -12,6 +13,9 @@ export function TopNav() {
       <SidebarTrigger className="md:hidden" />
       <div className="w-full flex-1">
         {/* Can have a search bar here if needed */}
+      </div>
+      <div className="hidden md:flex items-center">
+        <VersionDisplay />
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
