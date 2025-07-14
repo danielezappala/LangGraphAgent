@@ -43,10 +43,10 @@ export function AppSidebar({
         <div className="p-2">
           <button
             onClick={onNewChat}
-            className="w-full text-left py-2 px-4 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors flex items-center gap-2"
+            className="w-full text-left py-2 px-4 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors flex items-center justify-start gap-2"
           >
-            <MessageSquare className="h-4 w-4" />
-            <span>New Chat</span>
+            <MessageSquare className="h-4 w-4 flex-shrink-0" />
+            <span className="truncate">New Chat</span>
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-2">

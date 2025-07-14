@@ -80,10 +80,12 @@ export function ConversationHistory({
 
   return (
     <Accordion type="single" collapsible className="w-full">
-      <AccordionItem value="item-1">
-        <AccordionTrigger className="[&>svg]:h-4 [&>svg]:w-4">
-          <History className="mr-2" />
-          <span>Chat History</span>
+      <AccordionItem value="item-1" className="border-0">
+        <AccordionTrigger className="py-2 px-4 hover:no-underline [&>svg]:h-4 [&>svg]:w-4">
+          <div className="flex items-center justify-start w-full gap-2">
+            <History className="h-4 w-4 flex-shrink-0" />
+            <span className="text-left">Chat History</span>
+          </div>
         </AccordionTrigger>
         <AccordionContent>
           {isLoading ? (
