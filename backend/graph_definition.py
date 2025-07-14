@@ -1,7 +1,7 @@
 import os
-from typing import Annotated, List
+from typing import Annotated, List, Optional
 from dotenv import load_dotenv
-from langchain_openai import ChatOpenAI
+from langchain_openai import ChatOpenAI, AzureChatOpenAI
 from langchain_core.messages import BaseMessage
 from langgraph.graph import StateGraph
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
@@ -10,6 +10,7 @@ from langgraph.prebuilt import ToolNode
 
 from tools import search_web as tavily_tool, general_refusal as financial_advice_refusal, human_assistance, general_refusal, calculator
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from config import get_llm_config
 
 # Definisce lo stato del grafo. 
 # 'messages' è una lista a cui vengono aggiunti nuovi messaggi.
@@ -43,9 +44,30 @@ async def build_graph(checkpointer: AsyncSqliteSaver):
     dynamic_tools = await mcp_client.get_tools()
     tools = static_tools + dynamic_tools
 
-    # 2. Inizializzazione del modello LLM
-    llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    # Associa i tool al modello in modo che possa decidere quali chiamare
+    # 2. Initialize the LLM model based on configuration
+    llm_config = get_llm_config()
+    
+    if llm_config.provider == "azure":
+        # Azure OpenAI configuration
+        azure_config = llm_config.azure
+        llm = AzureChatOpenAI(
+            openai_api_version=azure_config.api_version,
+            azure_deployment=azure_config.deployment,
+            azure_endpoint=azure_config.endpoint,
+            openai_api_key=azure_config.api_key,
+            model=azure_config.model,
+            temperature=azure_config.temperature,
+        )
+    else:
+        # Standard OpenAI configuration (default)
+        openai_config = llm_config.openai
+        llm = ChatOpenAI(
+            model=openai_config.model,
+            temperature=openai_config.temperature,
+            openai_api_key=openai_config.api_key
+        )
+    
+    # Bind tools to the LLM so it can decide which ones to call
     llm_with_tools = llm.bind_tools(tools)
 
     # 3. Definizione dei nodi del grafo
