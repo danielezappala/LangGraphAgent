@@ -115,24 +115,45 @@ async def list_conversations():
         async with AsyncSqliteSaver.from_conn_string(DB_PATH) as checkpointer:
             for thread_id, last_checkpoint_ns in thread_info_list:
                 try:
-                    # Config to get the specific latest checkpoint (though aget_tuple defaults to latest if ns isn't specified)
-                    # For clarity and to be sure, we could specify checkpoint_ns, but it might be redundant
-                    # if aget_tuple already correctly fetches the one with MAX(checkpoint_ns) by default.
-                    # Let's rely on aget_tuple's default behavior of getting the latest for the thread_id.
+                    # Get the latest checkpoint for this thread
                     config = {"configurable": {"thread_id": thread_id}} 
+                    logger.debug(f"Fetching checkpoint for thread_id: {thread_id}")
                     checkpoint_tuple = await checkpointer.aget_tuple(config)
 
                     if not checkpoint_tuple or not checkpoint_tuple.checkpoint:
                         logger.warning(f"No valid checkpoint content found for thread_id: {thread_id} (ts: {last_checkpoint_ns}) when listing.")
                         preview = "No content available"
+                        ts_to_send = str(last_checkpoint_ns) if last_checkpoint_ns else None
                     else:
+                        logger.debug(f"Checkpoint found for thread_id: {thread_id}, checkpoint type: {type(checkpoint_tuple.checkpoint)}")
                         checkpoint_data = checkpoint_tuple.checkpoint
+                        
+                        # Log all available attributes in the checkpoint data
+                        logger.debug(f"Checkpoint data attributes: {dir(checkpoint_data)}")
+                        
+                        # Try to get the timestamp from various possible locations
+                        ts_to_send = None
+                        if hasattr(checkpoint_data, 'ts') and checkpoint_data.ts:
+                            ts_to_send = checkpoint_data.ts
+                            logger.debug(f"Found timestamp in checkpoint_data.ts: {ts_to_send}")
+                        elif hasattr(checkpoint_data, 'get') and callable(checkpoint_data.get):
+                            # If checkpoint_data is a dict-like object
+                            ts_to_send = checkpoint_data.get('ts')
+                            logger.debug(f"Found timestamp in checkpoint_data.get('ts'): {ts_to_send}")
+                        
+                        # Fall back to last_checkpoint_ns if no timestamp found
+                        if not ts_to_send and last_checkpoint_ns:
+                            ts_to_send = str(last_checkpoint_ns)
+                            logger.debug(f"Using last_checkpoint_ns as fallback: {ts_to_send}")
+                        
                         preview = get_last_human_message_preview(checkpoint_data)
+                        
+                        # Log final timestamp being sent
+                        logger.debug(f"Final timestamp for thread_id {thread_id}: {ts_to_send}")
                     
-                    # Log the raw timestamp value before sending
-                    logger.debug(f"list_conversations: For thread_id {thread_id}, raw last_checkpoint_ns: {last_checkpoint_ns}, type: {type(last_checkpoint_ns)}")
-                    
-                    ts_to_send = str(last_checkpoint_ns) if last_checkpoint_ns else None
+                    # Log the raw timestamp values for debugging
+                    logger.debug(f"list_conversations: For thread_id {thread_id}, checkpoint.ts: {getattr(checkpoint_data, 'ts', 'N/A') if checkpoint_tuple and checkpoint_tuple.checkpoint else 'No checkpoint'}, last_checkpoint_ns: {last_checkpoint_ns}")
+                    logger.debug(f"Sending response for thread_id {thread_id}: ts_to_send={ts_to_send}, preview_length={len(preview) if preview else 0}")
 
                     conversations_data.append(
                         Conversation(

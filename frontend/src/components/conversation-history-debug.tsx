@@ -27,26 +27,37 @@ export function ConversationHistory({
     }
     
     try {
-      // Convert the timestamp to a number if it's a string
-      const ts = typeof timestamp === 'string' ? parseInt(timestamp, 10) : timestamp;
-      console.log('Parsed timestamp:', ts, 'Type:', typeof ts);
+      let date: Date;
       
-      if (isNaN(ts)) {
-        console.error('Invalid timestamp (not a number):', timestamp);
-        return 'Invalid date';
+      // Handle ISO 8601 string format (e.g., '2023-07-14T12:34:56.789Z')
+      if (typeof timestamp === 'string' && timestamp.includes('T')) {
+        console.log('Parsing as ISO 8601 string');
+        date = new Date(timestamp);
+      } 
+      // Handle numeric string or number (legacy support)
+      else {
+        console.log('Parsing as numeric timestamp');
+        const ts = typeof timestamp === 'string' ? parseInt(timestamp, 10) : timestamp;
+        console.log('Parsed timestamp:', ts, 'Type:', typeof ts);
+        
+        if (isNaN(ts)) {
+          console.error('Invalid timestamp (not a number):', timestamp);
+          return 'Invalid date';
+        }
+        
+        // If the timestamp is in nanoseconds (from the backend), convert to milliseconds
+        const isNanoseconds = ts > 1e16; // If timestamp is greater than 10^16, it's likely in nanoseconds
+        const msTimestamp = isNanoseconds ? Math.floor(ts / 1000000) : ts;
+        console.log('Converted to ms:', msTimestamp, 'isNanoseconds:', isNanoseconds);
+        
+        date = new Date(msTimestamp);
       }
       
-      // If the timestamp is in nanoseconds (from the backend), convert to milliseconds
-      const isNanoseconds = ts > 1e16; // If timestamp is greater than 10^16, it's likely in nanoseconds
-      const msTimestamp = isNanoseconds ? Math.floor(ts / 1000000) : ts;
-      console.log('Converted to ms:', msTimestamp, 'isNanoseconds:', isNanoseconds);
-      
-      const date = new Date(msTimestamp);
       console.log('Date object:', date);
       
       // Check if the date is valid
       if (isNaN(date.getTime())) {
-        console.error('Invalid date from timestamp:', timestamp, 'ms:', msTimestamp);
+        console.error('Invalid date from timestamp:', timestamp);
         return 'Invalid date';
       }
       
