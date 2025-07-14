@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, FormEvent } from 'react';
 import { AgentsMenu } from '@/components/agents-menu';
 import { chatWithAgent } from '@/app/api/agents';
+import { generateId } from '@/lib/utils';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Send, LoaderCircle } from "lucide-react";
@@ -59,7 +60,7 @@ export function ChatInterface({
         e.preventDefault();
         if (!input.trim() || isLoading || !selectedAgent) return;
 
-        const userMessage: Message = { role: 'user', content: input, id: crypto.randomUUID() };
+        const userMessage: Message = { role: 'user', content: input, id: generateId() };
         propsSetMessages((prevMessages) => [...prevMessages, userMessage]);
         setInput("");
         setIsLoading(true);

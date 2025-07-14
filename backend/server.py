@@ -12,6 +12,7 @@ import sys
 from api import chat, ping, history
 from api.version_router import router as version_router
 from api.config import router as config_router
+from api.providers import router as providers_router
 
 # Import relativi standard per un'applicazione FastAPI
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
@@ -71,12 +72,11 @@ app.add_middleware(
 try:
     # Includi i router direttamente nell'app con i loro prefissi completi
     app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
-    app.include_router(ping.router, prefix="/api/ping", tags=["health"])
+    app.include_router(ping.router, prefix="/api/ping", tags=["ping"])
     app.include_router(history.router, prefix="/api/history", tags=["history"])
     app.include_router(version_router, prefix="/api/version", tags=["version"])
-    
-    # Config router is already mounted at /api/config in the router itself
-    app.include_router(config_router, prefix="/api", tags=["config"])
+    app.include_router(config_router, prefix="/api/config", tags=["config"])
+    app.include_router(providers_router, prefix="/api/providers", tags=["providers"])
     
     print("Router inclusi con successo.")
 except Exception as e:
