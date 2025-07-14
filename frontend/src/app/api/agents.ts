@@ -38,7 +38,9 @@ export async function chatWithAgent(
   console.log("Sending streaming chat request to /api/chat/stream");
   
   try {
-    const response = await fetch('/api/chat/stream', {
+    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/chat/stream`;
+    console.log("Using API URL:", apiUrl);
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

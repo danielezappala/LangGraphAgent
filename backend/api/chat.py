@@ -11,7 +11,7 @@ class ChatRequest(BaseModel):
     message: str
     thread_id: str
 
-router = APIRouter(prefix="/chat", tags=["chat"])
+router = APIRouter(tags=["chat"])
 
 def create_chunk(
     content: str, 

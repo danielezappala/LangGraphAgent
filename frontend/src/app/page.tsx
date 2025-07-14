@@ -11,24 +11,7 @@ import { Message, Conversation } from "@/lib/types";
 
 export default function Home() {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'user',
-      content: 'Hello, how can you help me today?',
-      id: 'test-user-1'
-    },
-    {
-      role: 'assistant', 
-      content: 'I can help with various tasks. What do you need?',
-      id: 'test-assistant-1'
-    },
-    {
-      role: 'assistant',
-      content: '{"query":"weather in Rome","result":"Sunny, 25°C"}',
-      tool: true,
-      id: 'test-tool-1'
-    }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [threadId, setThreadId] = useState<string>('');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
