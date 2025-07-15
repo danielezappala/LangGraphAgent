@@ -22,14 +22,24 @@ export function ConversationHistory({
     if (!timestamp) return 'No date';
     
     try {
-      // Convert the timestamp to a number if it's a string
-      const ts = typeof timestamp === 'string' ? parseInt(timestamp, 10) : timestamp;
+      let date: Date;
       
-      // If the timestamp is in nanoseconds (from the backend), convert to milliseconds
-      const isNanoseconds = ts > 1e16; // If timestamp is greater than 10^16, it's likely in nanoseconds
-      const date = isNanoseconds 
-        ? new Date(ts / 1000000) // Convert nanoseconds to milliseconds
-        : new Date(ts);
+      // Handle ISO 8601 string format (e.g., '2025-07-14T21:31:39.445833+00:00')
+      if (typeof timestamp === 'string' && timestamp.includes('T')) {
+        date = new Date(timestamp);
+      } 
+      // Handle numeric string or number (legacy support)
+      else {
+        const ts = typeof timestamp === 'string' ? parseInt(timestamp, 10) : timestamp;
+        if (isNaN(ts)) {
+          console.error('Invalid timestamp (not a number):', timestamp);
+          return 'Invalid date';
+        }
+        
+        // If the timestamp is in nanoseconds, convert to milliseconds
+        const isNanoseconds = ts > 1e16; // If timestamp is greater than 10^16, it's likely in nanoseconds
+        date = isNanoseconds ? new Date(ts / 1000000) : new Date(ts);
+      }
       
       // Check if the date is valid
       if (isNaN(date.getTime())) {
@@ -37,14 +47,39 @@ export function ConversationHistory({
         return 'Invalid date';
       }
       
-      // Format the date in a user-friendly way
-      return date.toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      });
+      const now = new Date();
+      const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+      
+      // Format as relative time if less than 24 hours ago
+      if (diffInSeconds < 60) {
+        return 'Just now';
+      } else if (diffInSeconds < 3600) {
+        const minutes = Math.floor(diffInSeconds / 60);
+        return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+      } else if (diffInSeconds < 86400) { // Less than 24 hours
+        const hours = Math.floor(diffInSeconds / 3600);
+        return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+      } 
+      // For older dates, show the date and time
+      const isThisYear = date.getFullYear() === now.getFullYear();
+      
+      if (isThisYear) {
+        // For dates in the current year, show month, day, and time
+        return date.toLocaleString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        });
+      } else {
+        // For older dates, include the year
+        return date.toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        });
+      }
     } catch (e) {
       console.error('Error formatting date:', e);
       return 'Invalid date';

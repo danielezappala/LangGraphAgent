@@ -2,17 +2,21 @@ import os
 from contextlib import asynccontextmanager
 import pathlib
 from dotenv import load_dotenv
-from fastapi import APIRouter, FastAPI, Request, status
+from fastapi import APIRouter, FastAPI, Request, status, Depends
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.exceptions import HTTPException as StarletteHTTPException
 import sys
+from sqlalchemy.orm import Session
+
+# Import database models to create tables
+from database import engine, Base, get_db
 
 # Import dei moduli API
 from api import chat, ping, history
 from api.version_router import router as version_router
 from api.config import router as config_router
-from api.providers import router as providers_router
+from api.providers import router as providers_router, get_active_provider_config, update_environment_vars
 
 # Import relativi standard per un'applicazione FastAPI
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
@@ -27,6 +31,23 @@ async def lifespan(app: FastAPI):
     """Gestisce l'avvio e lo spegnimento del server."""
     print("Avvio del server in corso...")
     load_dotenv(dotenv_path=pathlib.Path(__file__).parent / '.env')
+
+    # Create database tables if they don't exist
+    Base.metadata.create_all(bind=engine)
+    
+    # Initialize database session
+    db = next(get_db())
+    
+    # Check if we have an active provider, if not, try to set one
+    active_provider = get_active_provider_config(db)
+    if active_provider:
+        print(f"Active provider: {active_provider.name} ({active_provider.provider_type})")
+        update_environment_vars(active_provider)
+    else:
+        print("Warning: No active provider configured. Please set up a provider in the settings.")
+    
+    # Close the database session
+    db.close()
 
     # Inizializza il checkpointer per la persistenza del database SQLite.
     db_path = pathlib.Path(__file__).parent / "data" / "chatbot_memory.sqlite"
@@ -68,18 +89,32 @@ app.add_middleware(
 
 # --- Configurazione e Inclusione dei Router API ---
 
-# Includiamo i router specifici con i loro prefissi
-try:
-    # Includi i router direttamente nell'app con i loro prefissi completi
-    app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
-    app.include_router(ping.router, prefix="/api/ping", tags=["ping"])
-    app.include_router(history.router, prefix="/api/history", tags=["history"])
-    app.include_router(version_router, prefix="/api/version", tags=["version"])
-    app.include_router(config_router, prefix="/api/config", tags=["config"])
-    app.include_router(providers_router, prefix="/api/providers", tags=["providers"])
-    
-    print("Router inclusi con successo.")
-except Exception as e:
+# Includi i router delle API
+app.include_router(version_router)
+app.include_router(config_router)
+app.include_router(providers_router, prefix="/api/providers", tags=["providers"])
+app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
+app.include_router(ping.router, prefix="/api/ping", tags=["ping"])
+app.include_router(history.router, prefix="/api/history", tags=["history"])
+
+# Add database middleware
+@app.middleware("http")
+async def db_session_middleware(request: Request, call_next):
+    """Middleware to manage database sessions for each request."""
+    response = None
+    try:
+        request.state.db = next(get_db())
+        response = await call_next(request)
+    except Exception as e:
+        print(f"Database error: {e}")
+        response = JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error - database connection failed"}
+        )
+    finally:
+        if hasattr(request.state, 'db'):
+            request.state.db.close()
+    return response
     print(f"Errore durante l'inclusione dei router: {e}")
     raise
 

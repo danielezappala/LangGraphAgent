@@ -8,6 +8,9 @@ import { useState, useEffect, Dispatch, SetStateAction } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { Message, Conversation } from "@/lib/types";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AlertCircle, Settings } from "lucide-react";
+import Link from "next/link";
 
 export default function Home() {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -18,7 +21,33 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [emptyConversationId, setEmptyConversationId] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<string>('default_agent'); // Aggiunto stato per l'agente
+  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
+  const [isLoadingApiKey, setIsLoadingApiKey] = useState(true);
   const { toast } = useToast();
+
+  // Verifica se la chiave API è presente per il provider attivo
+  useEffect(() => {
+    const checkApiKey = async () => {
+      try {
+        setIsLoadingApiKey(true);
+        const response = await fetch('/api/providers/active');
+        if (response.ok) {
+          const data = await response.json();
+          setHasApiKey(!!data?.api_key);
+        } else {
+          console.error('Errore nel recupero delle informazioni del provider attivo');
+          setHasApiKey(false);
+        }
+      } catch (error) {
+        console.error('Errore durante il controllo della chiave API:', error);
+        setHasApiKey(false);
+      } finally {
+        setIsLoadingApiKey(false);
+      }
+    };
+
+    checkApiKey();
+  }, []);
 
   useEffect(() => {
     const fetchConversations = async () => {
@@ -203,6 +232,21 @@ export default function Home() {
         <SidebarInset>
           <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 h-screen">
             <TopNav />
+            {!isLoadingApiKey && hasApiKey === false && (
+              <Alert variant="destructive" className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Chiave API mancante</AlertTitle>
+                <AlertDescription className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <span>Per utilizzare l&apos;applicazione, è necessario configurare la chiave API per il provider attivo.</span>
+                  <Link 
+                    href="/settings" 
+                    className="font-medium underline underline-offset-4 hover:text-primary flex items-center gap-1"
+                  >
+                    <Settings className="h-4 w-4" /> Vai alle impostazioni
+                  </Link>
+                </AlertDescription>
+              </Alert>
+            )}
             <ChatInterface 
               messages={messages}
               setMessages={setMessages}

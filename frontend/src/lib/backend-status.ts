@@ -8,7 +8,8 @@ export type BackendStatus = 'connected' | 'inactive' | 'error' | 'checking';
  */
 export const checkBackendStatus = async (): Promise<BackendStatus> => {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/ping`, {
+    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:30010';
+    const response = await fetch(`${baseUrl}/api/ping`, {
       method: 'GET',
       cache: 'no-store',
       // Add a timeout to avoid hanging if the backend is not responding

@@ -11,13 +11,15 @@ export type AgentDetails = AgentSummary & {
 };
 
 export async function fetchAgents(): Promise<AgentSummary[]> {
-  const res = await fetch("/agents");
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:30010';
+  const res = await fetch(`${baseUrl}/api/agents`);
   if (!res.ok) throw new Error("Failed to fetch agents");
   return res.json();
 }
 
 export async function fetchAgentDetails(agentId: string): Promise<AgentDetails> {
-  const res = await fetch(`/agents/${agentId}`);
+  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:30010';
+  const res = await fetch(`${baseUrl}/api/agents/${agentId}`);
   if (!res.ok) throw new Error("Failed to fetch agent details");
   return res.json();
 }
@@ -38,7 +40,9 @@ export async function chatWithAgent(
   console.log("Sending streaming chat request to /api/chat/stream");
   
   try {
-    const apiUrl = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/chat/stream`;
+    // Use the same base URL as defined in next.config.js
+    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:30010';
+    const apiUrl = `${baseUrl}/api/chat/stream`;
     console.log("Using API URL:", apiUrl);
     const response = await fetch(apiUrl, {
       method: 'POST',

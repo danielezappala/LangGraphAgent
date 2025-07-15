@@ -1,0 +1,94 @@
+"""Database models and session management for the application."""
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, Text, ForeignKey, UniqueConstraint, DateTime
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker, Session, scoped_session, relationship
+import os
+from datetime import datetime
+from typing import Optional, List
+
+# Get the database URL from environment or use a default SQLite database
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./langgraph_agent.db")
+
+# Create a SQLAlchemy engine
+engine = create_engine(
+    DATABASE_URL, connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+)
+
+# Create a scoped session factory
+SessionLocal = scoped_session(
+    sessionmaker(autocommit=False, autoflush=False, bind=engine)
+)
+
+# Base class for all models
+Base = declarative_base()
+
+def get_db() -> Session:
+    """Get a database session."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+class DBProvider(Base):
+    """Database model for LLM providers."""
+    __tablename__ = "llm_providers"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False, unique=True)
+    provider_type = Column(String(20), nullable=False)  # 'openai' or 'azure'
+    is_active = Column(Boolean, default=False, nullable=False)
+    
+    # Common fields for all providers
+    api_key = Column(String(255), nullable=False)
+    model = Column(String(100))
+    
+    # Azure-specific fields
+    endpoint = Column(String(255))
+    deployment = Column(String(100))
+    api_version = Column(String(20))
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Only one active provider per type is allowed
+    __table_args__ = (
+        UniqueConstraint('provider_type', 'is_active', name='uix_provider_type_active'),
+    )
+    
+    def __repr__(self) -> str:
+        return f"<Provider(id={self.id}, name='{self.name}', type='{self.provider_type}', active={self.is_active})>"
+
+# Create all tables
+def init_db():
+    """Initialize the database by creating all tables."""
+    Base.metadata.create_all(bind=engine)
+    """Database model for LLM provider configurations."""
+    __tablename__ = "llm_providers"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, nullable=False, index=True)
+    provider_type = Column(String, nullable=False)  # 'openai' or 'azure'
+    is_active = Column(Boolean, default=False, nullable=False)
+    
+    # Common fields
+    api_key = Column(String, nullable=True)
+    model = Column(String, nullable=True)
+    
+    # Azure-specific fields
+    endpoint = Column(String, nullable=True)
+    deployment = Column(String, nullable=True)
+    api_version = Column(String, nullable=True)
+    
+    # Ensure only one active provider at a time
+    __table_args__ = (
+        UniqueConstraint('is_active', name='one_active_provider'),
+    )
+
+# Create all tables
+def init_db():
+    """Initialize the database by creating all tables."""
+    Base.metadata.create_all(bind=engine)
+
+# Initialize the database when this module is imported
+init_db()

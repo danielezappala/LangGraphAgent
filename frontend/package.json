@@ -3,11 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack -p 9002",
+    "dev": "env-cmd -f ../.env next dev --turbopack -p ${FRONTEND_PORT:-9002}",
     "genkit:dev": "genkit start -- tsx src/ai/dev.ts",
     "genkit:watch": "genkit start -- tsx --watch src/ai/dev.ts",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p ${FRONTEND_PORT:-9002}",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
   },
@@ -47,6 +47,7 @@
     "mermaid": "^10.9.3",
     "next": "15.3.3",
     "patch-package": "^8.0.0",
+    "env-cmd": "^10.1.0",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
