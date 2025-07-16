@@ -48,42 +48,18 @@ class DBProvider(Base):
     deployment = Column(String(100))
     api_version = Column(String(20))
     
+    # Enhanced fields for better functionality
+    is_from_env = Column(Boolean, default=False, nullable=False)  # Indicates if loaded from .env
+    is_valid = Column(Boolean, default=True, nullable=False)  # Configuration validation status
+    validation_errors = Column(Text)  # JSON string of validation errors
+    last_tested = Column(DateTime)  # Last connection test timestamp
+    connection_status = Column(String(20), default='untested')  # 'connected', 'failed', 'untested'
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    # Only one active provider per type is allowed
-    __table_args__ = (
-        UniqueConstraint('provider_type', 'is_active', name='uix_provider_type_active'),
-    )
-    
     def __repr__(self) -> str:
         return f"<Provider(id={self.id}, name='{self.name}', type='{self.provider_type}', active={self.is_active})>"
-
-# Create all tables
-def init_db():
-    """Initialize the database by creating all tables."""
-    Base.metadata.create_all(bind=engine)
-    """Database model for LLM provider configurations."""
-    __tablename__ = "llm_providers"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String, unique=True, nullable=False, index=True)
-    provider_type = Column(String, nullable=False)  # 'openai' or 'azure'
-    is_active = Column(Boolean, default=False, nullable=False)
-    
-    # Common fields
-    api_key = Column(String, nullable=True)
-    model = Column(String, nullable=True)
-    
-    # Azure-specific fields
-    endpoint = Column(String, nullable=True)
-    deployment = Column(String, nullable=True)
-    api_version = Column(String, nullable=True)
-    
-    # Ensure only one active provider at a time
-    __table_args__ = (
-        UniqueConstraint('is_active', name='one_active_provider'),
-    )
 
 # Create all tables
 def init_db():

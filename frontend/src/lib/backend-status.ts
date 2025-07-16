@@ -1,4 +1,4 @@
-import { fetchVersion } from './api';
+import { config } from './config';
 
 export type BackendStatus = 'connected' | 'inactive' | 'error' | 'checking';
 
@@ -8,8 +8,7 @@ export type BackendStatus = 'connected' | 'inactive' | 'error' | 'checking';
  */
 export const checkBackendStatus = async (): Promise<BackendStatus> => {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:30010';
-    const response = await fetch(`${baseUrl}/api/ping`, {
+    const response = await fetch(`${config.apiBaseUrl}/api/ping`, {
       method: 'GET',
       cache: 'no-store',
       // Add a timeout to avoid hanging if the backend is not responding

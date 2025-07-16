@@ -11,10 +11,11 @@ export default function SettingsPage() {
   useEffect(() => {
     const fetchActiveProvider = async () => {
       try {
-        const response = await fetch("/api/providers/active");
+        const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+        const response = await fetch(`${baseUrl}/api/providers/active`);
         if (response.ok) {
           const data = await response.json();
-          setActiveProvider(data.provider || "Not set");
+          setActiveProvider(data.name || "Not set");
         }
       } catch (error) {
         console.error("Error fetching active provider:", error);

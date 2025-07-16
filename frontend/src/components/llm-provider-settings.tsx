@@ -9,10 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
+import { useProviderStatus, ProviderConfig } from "@/hooks/use-provider-status";
+import { Loader2, CheckCircle, XCircle, AlertCircle } from "lucide-react";
 
 type ProviderType = "openai" | "azure";
 
-interface ProviderConfig {
+interface FormConfig {
   id?: number;
   name: string;
   provider: ProviderType;
@@ -29,59 +31,54 @@ interface LLMProviderSettingsProps {
 }
 
 export function LLMProviderSettings({ onProviderUpdate }: LLMProviderSettingsProps = {}) {
-  const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("");
-  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [config, setConfig] = useState<ProviderConfig>({
+  const [isTestingConnection, setIsTestingConnection] = useState(false);
+  const [config, setConfig] = useState<FormConfig>({
     name: "",
     provider: "openai",
     apiKey: "",
-    model: "gpt-4",
+    model: "",
     endpoint: "",
     deployment: "",
-    apiVersion: "2023-05-15",
+    apiVersion: "",
     isActive: false
   });
+  
   const { toast } = useToast();
   const router = useRouter();
+  
+  // Use the new provider status hook
+  const {
+    allProviders,
+    activeProvider,
+    isLoading,
+    error,
+    hasActiveProvider,
+    configurationIssues,
+    refreshStatus,
+    testProviderConnection,
+    deleteProvider,
+    activateProvider
+  } = useProviderStatus();
 
-  // Fetch all providers and set the active one
+  // Set initial selected provider when data loads
   useEffect(() => {
-    const fetchProviders = async () => {
-      try {
-        setIsLoading(true);
-        const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:30010';
-        const [providersRes, activeRes] = await Promise.all([
-          fetch(`${baseUrl}/api/providers/list`),
-          fetch(`${baseUrl}/api/providers/active`)
-        ]);
-
-        if (providersRes.ok && activeRes.ok) {
-          const providersData = await providersRes.json();
-          const activeData = await activeRes.json();
-          
-          setProviders(providersData);
-          
-          if (activeData) {
-            setConfig(activeData);
-            setSelectedProvider(activeData.id ? activeData.id.toString() : "new");
-          }
-        }
-      } catch (error) {
-        console.error("Failed to load providers:", error);
-        toast({
-          title: "Error",
-          description: "Failed to load provider settings",
-          variant: "destructive",
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchProviders();
-  }, [toast]);
+    if (activeProvider && !selectedProvider) {
+      setSelectedProvider(activeProvider.id.toString());
+      setConfig({
+        id: activeProvider.id,
+        name: activeProvider.name,
+        provider: activeProvider.provider_type,
+        apiKey: activeProvider.api_key,
+        model: activeProvider.model || "",
+        endpoint: activeProvider.endpoint || "",
+        deployment: activeProvider.deployment || "",
+        apiVersion: activeProvider.api_version || "",
+        isActive: activeProvider.is_active
+      });
+    }
+  }, [activeProvider, selectedProvider]);
 
   const handleProviderSelect = (id: string) => {
     setSelectedProvider(id);
@@ -100,33 +97,58 @@ export function LLMProviderSettings({ onProviderUpdate }: LLMProviderSettingsPro
       });
     } else {
       // Load the selected provider's data
-      const provider = providers.find(p => p.id?.toString() === id);
+      const provider = allProviders.find(p => p.id?.toString() === id);
       if (provider) {
         setConfig({
-          ...provider,
-          isActive: provider.isActive || false
+          id: provider.id,
+          name: provider.name,
+          provider: provider.provider_type,
+          apiKey: provider.api_key,
+          model: provider.model || "",
+          endpoint: provider.endpoint || "",
+          deployment: provider.deployment || "",
+          apiVersion: provider.api_version || "",
+          isActive: provider.is_active
         });
       }
     }
   };
   
   const handleProviderTypeChange = (providerType: ProviderType) => {
-    setConfig(prev => ({
-      ...prev,
-      provider: providerType,
-      // Reset fields when switching provider types
-      endpoint: providerType === "azure" ? prev.endpoint : undefined,
-      deployment: providerType === "azure" ? prev.deployment : undefined,
-      apiVersion: providerType === "azure" ? (prev.apiVersion || "2023-05-15") : undefined,
-    }));
+    setConfig(prev => {
+      const newConfig = {
+        ...prev,
+        provider: providerType,
+        // Reset fields when switching provider types
+        endpoint: providerType === "azure" ? prev.endpoint : "",
+        deployment: providerType === "azure" ? prev.deployment : "",
+        apiVersion: providerType === "azure" ? prev.apiVersion : "",
+      };
+      
+      // Clear model if switching provider types
+      if (prev.provider !== providerType) {
+        newConfig.model = "";
+      }
+      
+      return newConfig;
+    });
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setConfig(prev => ({
-      ...prev,
-      [name]: value,
-    }));
+    setConfig(prev => {
+      const newConfig = {
+        ...prev,
+        [name]: value,
+      };
+      
+      // If model is changed, clear any provider-specific fields that might be dependent on it
+      if (name === 'model') {
+        // Add any model-specific logic here if needed
+      }
+      
+      return newConfig;
+    });
   };
 
   interface RequestBody {
@@ -143,37 +165,35 @@ export function LLMProviderSettings({ onProviderUpdate }: LLMProviderSettingsPro
       return;
     }
 
+    if (!selectedProvider || selectedProvider === 'new') {
+      return;
+    }
+
     try {
       setIsSaving(true);
-      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:30010';
-      const response = await fetch(`${baseUrl}/api/providers/${selectedProvider}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const success = await deleteProvider(parseInt(selectedProvider));
+      
+      if (success) {
+        // Reset the form to default values
+        setSelectedProvider('new');
+        setConfig({
+          name: '',
+          provider: 'openai',
+          apiKey: '',
+          model: '',
+          endpoint: '',
+          deployment: '',
+          apiVersion: '',
+          isActive: false
+        });
 
-      if (!response.ok) {
+        toast({
+          title: 'Success',
+          description: 'Provider deleted successfully',
+        });
+      } else {
         throw new Error('Failed to delete provider');
       }
-
-      // Refresh the providers list
-      await fetchProviders();
-      
-      // Reset the form
-      setSelectedProvider('new');
-      setConfig({
-        name: '',
-        provider: 'openai',
-        apiKey: '',
-        model: 'gpt-4',
-        isActive: false
-      });
-
-      toast({
-        title: 'Success',
-        description: 'Provider deleted successfully',
-      });
     } catch (error) {
       console.error('Error deleting provider:', error);
       toast({
@@ -224,17 +244,17 @@ export function LLMProviderSettings({ onProviderUpdate }: LLMProviderSettingsPro
         name: config.name,
         provider_type: config.provider,
         api_key: config.apiKey,
-        model: config.model || 'gpt-4',
+        model: config.model,
         is_active: true,
-        // Campi specifici per Azure
+        // Azure-specific fields
         ...(config.provider === 'azure' && {
           endpoint: config.endpoint,
-          deployment: config.deployment || 'gpt-4',
-          api_version: config.apiVersion || '2023-05-15'
+          deployment: config.deployment,
+          api_version: config.apiVersion
         })
       };
 
-      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:30010';
+      const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
       const endpoint = selectedProvider === 'new' 
         ? `${baseUrl}/api/providers/add` 
         : `${baseUrl}/api/providers/switch/${selectedProvider}`;
@@ -260,16 +280,12 @@ export function LLMProviderSettings({ onProviderUpdate }: LLMProviderSettingsPro
           description: successMessage,
         });
         
-        // Refresh the providers list
-        const providersRes = await fetch("/api/providers/list");
-        if (providersRes.ok) {
-          const providersData = await providersRes.json();
-          setProviders(providersData);
-          
-          // If this was a new provider, select it
-          if (selectedProvider === 'new' && data.id) {
-            setSelectedProvider(data.id.toString());
-          }
+        // Refresh the providers list using the hook
+        await refreshStatus();
+        
+        // If this was a new provider, select it
+        if (selectedProvider === 'new' && data.id) {
+          setSelectedProvider(data.id.toString());
         }
         
         // Notify parent component about the provider update
@@ -323,19 +339,21 @@ export function LLMProviderSettings({ onProviderUpdate }: LLMProviderSettingsPro
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="new">+ Add New Provider</SelectItem>
-                  {providers.map((provider) => (
-                    <SelectItem 
-                      key={provider.id} 
-                      value={provider.id?.toString() || ''}
-                      className="flex items-center justify-between"
-                    >
-                      <div className="flex items-center">
-                        <span>{provider.name}</span>
-                        {provider.isActive && (
-                          <Badge variant="outline" className="ml-2">Active</Badge>
-                        )}
-                      </div>
-                    </SelectItem>
+                  {allProviders.map((provider) => (
+                    provider.id ? (
+                      <SelectItem 
+                        key={provider.id} 
+                        value={provider.id.toString()}
+                        className="flex items-center justify-between"
+                      >
+                        <div className="flex items-center">
+                          <span>{provider.name}</span>
+                          {provider.is_active && (
+                            <Badge variant="outline" className="ml-2">Active</Badge>
+                          )}
+                        </div>
+                      </SelectItem>
+                    ) : null
                   ))}
                 </SelectContent>
               </Select>
@@ -356,26 +374,25 @@ export function LLMProviderSettings({ onProviderUpdate }: LLMProviderSettingsPro
                   />
                 </div>
                 
-                <div className="flex space-x-4 pt-2">
-                  <Button
-                    type="button"
-                    variant={config.provider === "openai" ? "default" : "outline"}
-                    onClick={() => handleProviderTypeChange("openai")}
-                    disabled={isSaving}
-                    className="flex-1"
-                  >
-                    OpenAI
-                  </Button>
-                  <Button
-                    type="button"
-                    variant={config.provider === "azure" ? "default" : "outline"}
-                    onClick={() => handleProviderTypeChange("azure")}
-                    disabled={isSaving}
-                    className="flex-1"
-                  >
-                    Azure OpenAI
-                  </Button>
-                </div>
+                {selectedProvider === 'new' && (
+                  <div>
+                    <Label htmlFor="provider-type">Provider Type</Label>
+                    <Select 
+                      value={config.provider} 
+                      onValueChange={(value: ProviderType) => handleProviderTypeChange(value)}
+                      disabled={isSaving}
+                    >
+                      <SelectTrigger id="provider-type" className="mt-1">
+                        <SelectValue placeholder="Select provider type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="openai">OpenAI</SelectItem>
+                        <SelectItem value="azure">Azure OpenAI</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
               </div>
             )}
           </div>
@@ -456,6 +473,119 @@ export function LLMProviderSettings({ onProviderUpdate }: LLMProviderSettingsPro
               </div>
             )}
 
+            {selectedProvider && selectedProvider !== 'new' && (
+              <div className="space-y-4">
+                {/* Connection Status */}
+                <div className="flex items-center space-x-2 p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center space-x-2">
+                    {(() => {
+                      const provider = allProviders.find(p => p.id?.toString() === selectedProvider);
+                      const status = provider?.connection_status || 'untested';
+                      
+                      if (status === 'connected') {
+                        return <CheckCircle className="h-4 w-4 text-green-500" />;
+                      } else if (status === 'failed') {
+                        return <XCircle className="h-4 w-4 text-red-500" />;
+                      } else {
+                        return <AlertCircle className="h-4 w-4 text-yellow-500" />;
+                      }
+                    })()}
+                    <span className="text-sm font-medium">
+                      Connection: {(() => {
+                        const provider = allProviders.find(p => p.id?.toString() === selectedProvider);
+                        const status = provider?.connection_status || 'untested';
+                        return status.charAt(0).toUpperCase() + status.slice(1);
+                      })()}
+                      {config.isActive && (
+                        <Badge variant="default" className="ml-2">Active Provider</Badge>
+                      )}
+                      {allProviders.find(p => p.id?.toString() === selectedProvider)?.is_from_env && (
+                        <Badge variant="secondary" className="ml-2">From Environment</Badge>
+                      )}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      setIsTestingConnection(true);
+                      try {
+                        const result = await testProviderConnection(parseInt(selectedProvider));
+                        toast({
+                          title: result.success ? "Connection Successful" : "Connection Failed",
+                          description: result.message,
+                          variant: result.success ? "default" : "destructive",
+                        });
+                      } catch (error) {
+                        toast({
+                          title: "Test Failed",
+                          description: "Unable to test connection",
+                          variant: "destructive",
+                        });
+                      } finally {
+                        setIsTestingConnection(false);
+                      }
+                    }}
+                    disabled={isTestingConnection || isSaving}
+                  >
+                    {isTestingConnection ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Testing...
+                      </>
+                    ) : (
+                      "Test Connection"
+                    )}
+                  </Button>
+                </div>
+
+                {/* Activation Controls */}
+                {!config.isActive && (
+                  <div className="p-3 bg-blue-50 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-blue-900">Activate this provider</p>
+                        <p className="text-xs text-blue-700">Make this the active provider for new conversations</p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={async () => {
+                          setIsSaving(true);
+                          try {
+                            const success = await activateProvider(parseInt(selectedProvider));
+                            if (success) {
+                              toast({
+                                title: "Provider Activated",
+                                description: `${config.name} is now the active provider`,
+                              });
+                              // Update local state
+                              setConfig(prev => ({ ...prev, isActive: true }));
+                            } else {
+                              throw new Error('Failed to activate provider');
+                            }
+                          } catch (error) {
+                            toast({
+                              title: "Activation Failed",
+                              description: "Unable to activate provider",
+                              variant: "destructive",
+                            });
+                          } finally {
+                            setIsSaving(false);
+                          }
+                        }}
+                        disabled={isSaving}
+                      >
+                        Activate
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {selectedProvider && (
             <div className="flex justify-between pt-4 border-t">
               <div>
@@ -475,10 +605,10 @@ export function LLMProviderSettings({ onProviderUpdate }: LLMProviderSettingsPro
                 <Button 
                   type="button" 
                   variant="outline"
-                  onClick={() => router.back()}
+                  onClick={() => router.push('/')}
                   disabled={isSaving}
                 >
-                  Cancel
+                  Back to Home
                 </Button>
                 <Button 
                   type="submit" 

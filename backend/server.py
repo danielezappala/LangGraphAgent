@@ -2,6 +2,12 @@ import os
 from contextlib import asynccontextmanager
 import pathlib
 from dotenv import load_dotenv
+
+# Carica le variabili d'ambiente
+# Prima carica il file .env nella directory principale (condiviso)
+load_dotenv()
+# Poi sovrascrivi con le variabili specifiche del backend
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=True)
 from fastapi import APIRouter, FastAPI, Request, status, Depends
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +30,33 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from version import __version__
 from graph_definition import build_graph
 
+# --- Helper Functions ---
+
+def _update_runtime_env_vars(provider_config: dict):
+    """Update environment variables for LLM runtime compatibility."""
+    try:
+        os.environ["LLM_PROVIDER"] = provider_config['provider_type']
+        
+        if provider_config['provider_type'] == "openai":
+            os.environ["OPENAI_API_KEY"] = provider_config['api_key']
+            if provider_config.get('model'):
+                os.environ["OPENAI_MODEL"] = provider_config['model']
+        elif provider_config['provider_type'] == "azure":
+            os.environ["AZURE_OPENAI_API_KEY"] = provider_config['api_key']
+            if provider_config.get('endpoint'):
+                os.environ["AZURE_OPENAI_ENDPOINT"] = provider_config['endpoint']
+            if provider_config.get('deployment'):
+                os.environ["AZURE_OPENAI_DEPLOYMENT"] = provider_config['deployment']
+            if provider_config.get('model'):
+                os.environ["AZURE_OPENAI_MODEL"] = provider_config['model']
+            if provider_config.get('api_version'):
+                os.environ["AZURE_OPENAI_API_VERSION"] = provider_config['api_version']
+        
+        print(f"Runtime environment variables updated for {provider_config['provider_type']} provider")
+        
+    except Exception as e:
+        print(f"Error updating runtime environment variables: {e}")
+
 # --- Configurazione dell'applicazione FastAPI ---
 
 @asynccontextmanager
@@ -38,11 +71,20 @@ async def lifespan(app: FastAPI):
     # Initialize database session
     db = next(get_db())
     
-    # Check if we have an active provider, if not, try to set one
-    active_provider = get_active_provider_config(db)
-    if active_provider:
-        print(f"Active provider: {active_provider.name} ({active_provider.provider_type})")
-        update_environment_vars(active_provider)
+    # Run bootstrap process if needed (Database-First approach)
+    from services.bootstrap_service import get_bootstrap_service
+    bootstrap_service = get_bootstrap_service(db)
+    bootstrap_service.run_bootstrap_if_needed()
+    
+    # Get active provider from database (single source of truth)
+    from services.config_service import get_config_service
+    config_service = get_config_service(db)
+    active_provider_config = config_service.get_active_provider()
+    
+    if active_provider_config:
+        print(f"Active provider: {active_provider_config['name']} ({active_provider_config['provider_type']})")
+        # Update environment variables for LLM runtime compatibility
+        _update_runtime_env_vars(active_provider_config)
     else:
         print("Warning: No active provider configured. Please set up a provider in the settings.")
     
@@ -90,7 +132,7 @@ app.add_middleware(
 # --- Configurazione e Inclusione dei Router API ---
 
 # Includi i router delle API
-app.include_router(version_router)
+app.include_router(version_router, prefix="/api/version", tags=["version"])
 app.include_router(config_router)
 app.include_router(providers_router, prefix="/api/providers", tags=["providers"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])

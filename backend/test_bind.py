@@ -12,4 +12,4 @@ def test_bind(port):
         return False
 
 # Prova su una porta casuale alta
-test_bind(30010)
+test_bind(8000)

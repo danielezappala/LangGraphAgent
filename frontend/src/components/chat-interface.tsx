@@ -32,6 +32,7 @@ interface ChatInterfaceProps {
     setIsLoading: (loading: boolean) => void;
     threadId: string;
     setThreadId: (id: string) => void;
+    onConversationUpdate?: () => Promise<void>;
 }
 
 export function ChatInterface({
@@ -43,7 +44,8 @@ export function ChatInterface({
     isLoading,
     setIsLoading,
     threadId,
-    setThreadId
+    setThreadId,
+    onConversationUpdate
 }: ChatInterfaceProps) {
     const [input, setInput] = useState("");
     const [promptSuggestions, setPromptSuggestions] = useState<string[]>([]);
@@ -78,15 +80,15 @@ export function ChatInterface({
                         console.warn("Received chunk without valid message data:", parsedData);
                         return;
                     }
-                    
+
                     propsSetMessages(prev => {
                         let newMessages = [...prev];
-                        
+
                         let lastMessage = newMessages.length > 0 ? newMessages[newMessages.length - 1] : null;
                         if (lastMessage && lastMessage.role === 'assistant' && lastMessage.content === '') {
                             newMessages.pop();
                         }
-                        
+
                         lastMessage = newMessages.length > 0 ? newMessages[newMessages.length - 1] : null;
 
                         if (messageData.type === "tool_result") {
@@ -106,7 +108,7 @@ export function ChatInterface({
                             if (!messageData.content) {
                                 return newMessages;
                             }
-                            
+
                             // If the last message is an assistant message, append to it
                             if (lastMessage && lastMessage.role === 'assistant' && !lastMessage.tool) {
                                 lastMessage.content = (lastMessage.content || '') + messageData.content;
@@ -119,18 +121,18 @@ export function ChatInterface({
                                     id: messageData.id || crypto.randomUUID(),
                                 });
                             }
-                        
+
                         } else if (messageData.type === "error") {
                             newMessages.push({
                                 role: 'assistant',
                                 content: `Error: ${messageData.content}`,
                                 id: messageData.id || crypto.randomUUID()
                             });
-                        
+
                         } else if (messageData.type === "end") {
                             console.log("Stream ended by 'end' chunk.");
                         }
-                        
+
                         return newMessages;
                     });
 
@@ -150,6 +152,14 @@ export function ChatInterface({
             });
         } finally {
             setIsLoading(false);
+            // Refresh conversations list after sending a message
+            if (onConversationUpdate) {
+                try {
+                    await onConversationUpdate();
+                } catch (error) {
+                    console.error("Failed to refresh conversations:", error);
+                }
+            }
         }
     };
 
@@ -180,7 +190,7 @@ export function ChatInterface({
                         ))}
                         {isLoading && (
                             <div className="flex items-start gap-4 animate-in fade-in">
-                                <RediLogo className="h-8 w-8 shrink-0 text-primary"/>
+                                <RediLogo className="h-8 w-8 shrink-0 text-primary" />
                                 <div className="flex items-center space-x-2 rounded-lg bg-card p-3 text-sm">
                                     <LoaderCircle className="h-5 w-5 animate-spin text-primary" />
                                     <span className="text-muted-foreground">Redi is thinking...</span>

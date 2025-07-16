@@ -5,7 +5,7 @@ import { AgentsMenu } from "@/components/agents-menu";
 import type { Message } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ConversationHistory } from "./conversation-history-debug";
-import { MessageSquare, Settings } from "lucide-react";
+import { MessageSquare } from "lucide-react";
 import Link from "next/link";
 
 // Definizione del tipo Conversation, allineato con page.tsx e il backend
@@ -59,15 +59,7 @@ export function AppSidebar({
           />
         </div>
       </SidebarContent>
-      <div className="mt-auto p-2">
-        <Link 
-          href="/settings"
-          className="flex items-center gap-2 p-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
-        >
-          <Settings className="h-4 w-4 flex-shrink-0" />
-          <span className="truncate">Settings</span>
-        </Link>
-      </div>
+
     </Sidebar>
   );
 }

@@ -2,6 +2,18 @@ import type {Metadata} from 'next';
 import './globals.css';
 import { ToastProvider, ToastViewport } from "@/components/ui/toast";
 
+// Debug log per le variabili d'ambiente
+if (typeof window !== 'undefined') {
+  console.log('NEXT_PUBLIC_API_BASE_URL:', process.env.NEXT_PUBLIC_API_BASE_URL);
+  console.log('Tutte le variabili d\'ambiente:', Object.keys(process.env)
+    .filter(key => key.startsWith('NEXT_PUBLIC_'))
+    .reduce((obj, key) => {
+      obj[key] = process.env[key];
+      return obj;
+    }, {} as Record<string, string | undefined>)
+  );
+}
+
 export const metadata: Metadata = {
   title: 'Redi',
   description: 'Redi: a modern, conversational UI for an AI chat assistant.'

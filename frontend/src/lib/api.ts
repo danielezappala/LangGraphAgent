@@ -2,7 +2,7 @@
  * API service for interacting with the backend
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
 /**
  * Fetches the current version information from the backend
@@ -10,7 +10,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/a
  */
 export const fetchVersion = async () => {
   try {
-    const response = await fetch(`${API_BASE_URL}/version`, {
+    const response = await fetch(`${API_BASE_URL}/api/version/`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

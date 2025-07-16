@@ -1,11 +1,15 @@
 """API endpoints for managing LLM providers."""
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Dict, Any
 import os
+import json
+from datetime import datetime
 from sqlalchemy.orm import Session
 
 from database import DBProvider, get_db
+from services.config_service import get_config_service, ProviderStatus
+from services.provider_service import get_provider_service, TestResult
 
 router = APIRouter()
 
@@ -35,81 +39,207 @@ def get_active_provider_config(db: Session) -> Optional[DBProvider]:
     """Get the currently active provider configuration."""
     return db.query(DBProvider).filter(DBProvider.is_active == True).first()
 
-@router.get("/active", response_model=ProviderConfigResponse)
+@router.get("/active")
 async def get_active_provider(db: Session = Depends(get_db)):
     """Get the currently active LLM provider."""
-    provider = get_active_provider_config(db)
-    if not provider:
-        raise HTTPException(status_code=404, detail="No active provider found")
-    return provider
+    try:
+        provider_service = get_provider_service(db)
+        active_provider = provider_service.get_active_provider()
+        
+        if not active_provider:
+            raise HTTPException(status_code=404, detail="No active provider found")
+        
+        return active_provider
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-@router.get("/list", response_model=List[ProviderConfigResponse])
+@router.get("/list")
 async def list_providers(db: Session = Depends(get_db)):
     """List all available provider configurations."""
-    return db.query(DBProvider).all()
+    try:
+        provider_service = get_provider_service(db)
+        providers = provider_service.list_all_providers()
+        
+        return providers
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-@router.post("/add", response_model=ProviderConfigResponse)
+@router.post("/add")
 async def add_provider(
     config: ProviderConfigCreate,
     db: Session = Depends(get_db)
 ):
     """Add a new provider configuration."""
-    # If this is set to be active, deactivate all others
-    if config.is_active:
-        db.query(DBProvider).update({DBProvider.is_active: False})
-    
-    # Create the new provider
-    db_provider = DBProvider(
-        name=config.name,
-        provider_type=config.provider_type,
-        api_key=config.api_key,
-        model=config.model,
-        endpoint=config.endpoint,
-        deployment=config.deployment,
-        api_version=config.api_version,
-        is_active=config.is_active
-    )
-    
-    db.add(db_provider)
-    db.commit()
-    db.refresh(db_provider)
-    
-    return db_provider
+    try:
+        provider_service = get_provider_service(db)
+        
+        # Convert Pydantic model to dict
+        config_dict = {
+            'name': config.name,
+            'provider_type': config.provider_type,
+            'api_key': config.api_key,
+            'model': config.model,
+            'endpoint': config.endpoint,
+            'deployment': config.deployment,
+            'api_version': config.api_version,
+            'is_active': config.is_active
+        }
+        
+        result = provider_service.create_provider(config_dict)
+        return result
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-@router.post("/switch/{provider_id}", response_model=ProviderConfigResponse)
+@router.post("/switch/{provider_id}")
 async def switch_provider(
     provider_id: int,
     config: ProviderConfigCreate,
     db: Session = Depends(get_db)
 ):
     """Switch to and update a provider configuration."""
-    # Find the provider to update
-    provider = db.query(DBProvider).filter(DBProvider.id == provider_id).first()
-    if not provider:
-        raise HTTPException(status_code=404, detail="Provider not found")
+    try:
+        provider_service = get_provider_service(db)
+        
+        # Convert Pydantic model to dict
+        config_dict = {
+            'name': config.name,
+            'provider_type': config.provider_type,
+            'api_key': config.api_key,
+            'model': config.model,
+            'endpoint': config.endpoint,
+            'deployment': config.deployment,
+            'api_version': config.api_version,
+            'is_active': config.is_active
+        }
+        
+        result = provider_service.update_provider(provider_id, config_dict)
+        return result
+        
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@router.delete("/{provider_id}")
+async def delete_provider(provider_id: int, db: Session = Depends(get_db)):
+    """Delete a provider configuration."""
+    try:
+        provider_service = get_provider_service(db)
+        success = provider_service.delete_provider(provider_id)
+        
+        if success:
+            return {"message": "Provider deleted successfully"}
+        else:
+            raise HTTPException(status_code=400, detail="Failed to delete provider")
+            
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@router.post("/{provider_id}/activate", response_model=ProviderConfigResponse)
+async def activate_provider(provider_id: int, db: Session = Depends(get_db)):
+    """Set a provider as the active one."""
+    try:
+        provider_service = get_provider_service(db)
+        result = provider_service.set_active_provider(provider_id)
+        
+        if result:
+            return result
+        else:
+            raise HTTPException(status_code=400, detail="Failed to activate provider")
+            
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@router.post("/{provider_id}/test")
+async def test_provider_connection(provider_id: int, db: Session = Depends(get_db)):
+    """Test connection to a provider."""
+    print(f"=== TESTING PROVIDER CONNECTION ===")
+    print(f"Provider ID: {provider_id}")
     
-    # If this provider is being activated, deactivate all others
-    if config.is_active:
-        db.query(DBProvider).update({DBProvider.is_active: False})
-    
-    # Update provider details
-    provider.name = config.name
-    provider.provider_type = config.provider_type
-    provider.api_key = config.api_key
-    provider.model = config.model
-    provider.endpoint = config.endpoint
-    provider.deployment = config.deployment
-    provider.api_version = config.api_version
-    provider.is_active = config.is_active
-    
-    db.commit()
-    db.refresh(provider)
-    
-    # Update environment variables if this is the active provider
-    if provider.is_active:
-        update_environment_vars(provider)
-    
-    return provider
+    try:
+        # Get provider from database
+        provider = db.query(DBProvider).filter(DBProvider.id == provider_id).first()
+        if not provider:
+            print(f"Provider with ID {provider_id} not found")
+            raise HTTPException(status_code=404, detail="Provider not found")
+        
+        print(f"Found provider: {provider.name} ({provider.provider_type})")
+        
+        # Convert to config dict for testing
+        config = {
+            'name': provider.name,
+            'provider_type': provider.provider_type,
+            'api_key': provider.api_key,
+            'model': provider.model,
+            'endpoint': provider.endpoint,
+            'deployment': provider.deployment,
+            'api_version': provider.api_version
+        }
+        
+        provider_service = get_provider_service(db)
+        result = provider_service.test_provider_connection(config)
+        
+        # Update provider's connection status and last tested time
+        provider.connection_status = 'connected' if result.success else 'failed'
+        provider.last_tested = datetime.utcnow()
+        db.commit()
+        
+        return {
+            "success": result.success,
+            "message": result.message,
+            "response_time_ms": result.response_time_ms,
+            "error_details": result.error_details
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@router.get("/status")
+async def get_provider_status(db: Session = Depends(get_db)):
+    """Get overall provider configuration status."""
+    try:
+        config_service = get_config_service(db)
+        status = config_service.get_provider_status()
+        
+        return {
+            "has_active_provider": status.has_active_provider,
+            "active_provider_name": status.active_provider_name,
+            "total_providers": status.total_providers,
+            "configuration_source": status.configuration_source,
+            "issues": status.issues
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@router.post("/sync")
+async def sync_providers(db: Session = Depends(get_db)):
+    """Force sync between .env and database configurations."""
+    try:
+        config_service = get_config_service(db)
+        success = config_service.sync_env_to_database()
+        
+        if success:
+            return {"message": "Providers synchronized successfully"}
+        else:
+            return {"message": "No environment configuration found to sync"}
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
 
 def update_environment_vars(provider: DBProvider):
     """Update environment variables based on provider configuration."""

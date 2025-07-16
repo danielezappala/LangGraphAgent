@@ -9,6 +9,12 @@ from alembic import op
 import sqlalchemy as sa
 from sqlalchemy import inspect
 
+# revision identifiers, used by Alembic.
+revision = '2_add_llm_providers_table'
+down_revision = '1bcfc6c0f7b7'
+branch_labels = None
+depends_on = None
+
 def table_exists(table_name):
     bind = op.get_bind()
     inspector = inspect(bind)
