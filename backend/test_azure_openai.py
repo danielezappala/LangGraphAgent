@@ -5,7 +5,7 @@ from pprint import pprint
 # Load environment variables using centralized loader
 from core.env_loader import EnvironmentLoader
 EnvironmentLoader.load_environment()
-from config import get_llm_config
+# Legacy config import removed - now using centralized EnvironmentLoader
 
 def print_env_vars():
     """Print relevant environment variables for debugging."""
@@ -17,31 +17,6 @@ def print_env_vars():
     print("==========================\n")
     return env_vars
 
-def print_config_debug(config):
-    """Print debug information about the configuration."""
-    print("\n=== Configuration Debug ===")
-    print(f"Config type: {type(config)}")
-    print(f"Provider: {config.provider}")
-    
-    print("\nOpenAI Config:")
-    if config.openai:
-        print(f"  - Model: {config.openai.model}")
-        print(f"  - API Key set: {'Yes' if config.openai.api_key else 'No'}")
-    else:
-        print("  - Not configured")
-        
-    print("\nAzure Config:")
-    if config.azure:
-        print(f"  - Endpoint: {config.azure.endpoint}")
-        print(f"  - Deployment: {config.azure.deployment}")
-        print(f"  - API Key set: {'Yes' if config.azure.api_key else 'No'}")
-    else:
-        print("  - Not configured")
-    
-    print("\nEnvironment variables in config:")
-    pprint({k: v for k, v in os.environ.items() 
-           if k.startswith(('AZURE_', 'OPENAI_', 'LLM_'))})
-    print("==========================\n")
 
 async def test_azure_connection():
     # Print environment variables for debugging
@@ -51,20 +26,17 @@ async def test_azure_connection():
     # Environment variables already loaded by centralized loader
     
     try:
-        # Load configuration
+        # Load configuration using centralized loader
         print("\nLoading configuration...")
-        config = get_llm_config()
+        provider = EnvironmentLoader.get_llm_provider()
+        azure_config = EnvironmentLoader.get_azure_config()
         
-        # Print debug info
-        print_config_debug(config)
-        
-        if config.provider != "azure":
-            print(f"\n❌ ERRORE: LLM_PROVIDER non è impostato su 'azure' (attuale: {config.provider})")
+        if not provider or provider.lower() != "azure":
+            print(f"\n❌ ERRORE: LLM_PROVIDER non è impostato su 'azure' (attuale: {provider})")
             print("Per favore verifica il file .env o imposta LLM_PROVIDER=azure")
-            print(f"Environment LLM_PROVIDER: {EnvironmentLoader.get_llm_provider()}")
             return
             
-        if not config.azure:
+        if not azure_config['api_key'] or not azure_config['endpoint']:
             print("\n❌ ERRORE: Configurazione Azure non trovata")
             print("Assicurati di aver impostato le seguenti variabili d'ambiente:")
             print("- AZURE_OPENAI_API_KEY")
@@ -74,20 +46,20 @@ async def test_azure_connection():
             return
             
         print("\n✅ Configurazione Azure OpenAI rilevata:")
-        print(f"- Endpoint: {config.azure.endpoint}")
-        print(f"- Deployment: {config.azure.deployment}")
-        print(f"- API Version: {config.azure.api_version}")
-        print(f"- Model: {config.azure.model}")
+        print(f"- Endpoint: {azure_config['endpoint']}")
+        print(f"- Deployment: {azure_config['deployment']}")
+        print(f"- API Version: {azure_config['api_version']}")
+        print(f"- Model: {azure_config['model']}")
         
         # Test connection by creating an instance of AzureChatOpenAI
         print("\nTesting connection to Azure OpenAI...")
         from langchain_openai import AzureChatOpenAI
         
         llm = AzureChatOpenAI(
-            openai_api_version=config.azure.api_version,
-            azure_deployment=config.azure.deployment,
-            azure_endpoint=config.azure.endpoint,
-            openai_api_key=config.azure.api_key,
+            openai_api_version=azure_config['api_version'],
+            azure_deployment=azure_config['deployment'],
+            azure_endpoint=azure_config['endpoint'],
+            openai_api_key=azure_config['api_key'],
             temperature=0,
             max_retries=2,
             timeout=10

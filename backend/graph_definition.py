@@ -13,7 +13,6 @@ from langgraph.prebuilt import ToolNode
 
 from tools import search_web as tavily_tool, general_refusal as financial_advice_refusal, human_assistance, general_refusal, calculator
 from langchain_mcp_adapters.client import MultiServerMCPClient
-from config import get_llm_config
 
 # Definisce lo stato del grafo. 
 # 'messages' è una lista a cui vengono aggiunti nuovi messaggi.
@@ -48,26 +47,26 @@ async def build_graph(checkpointer: AsyncSqliteSaver):
     tools = static_tools + dynamic_tools
 
     # 2. Initialize the LLM model based on configuration
-    llm_config = get_llm_config()
+    provider = EnvironmentLoader.get_llm_provider()
     
-    if llm_config.provider == "azure":
+    if provider and provider.lower() == "azure":
         # Azure OpenAI configuration
-        azure_config = llm_config.azure
+        azure_config = EnvironmentLoader.get_azure_config()
         llm = AzureChatOpenAI(
-            openai_api_version=azure_config.api_version,
-            azure_deployment=azure_config.deployment,
-            azure_endpoint=azure_config.endpoint,
-            openai_api_key=azure_config.api_key,
-            model=azure_config.model,
-            temperature=azure_config.temperature,
+            openai_api_version=azure_config['api_version'],
+            azure_deployment=azure_config['deployment'],
+            azure_endpoint=azure_config['endpoint'],
+            openai_api_key=azure_config['api_key'],
+            model=azure_config['model'],
+            temperature=azure_config['temperature'],
         )
     else:
         # Standard OpenAI configuration (default)
-        openai_config = llm_config.openai
+        openai_config = EnvironmentLoader.get_openai_config()
         llm = ChatOpenAI(
-            model=openai_config.model,
-            temperature=openai_config.temperature,
-            openai_api_key=openai_config.api_key
+            model=openai_config['model'],
+            temperature=openai_config['temperature'],
+            openai_api_key=openai_config['api_key']
         )
     
     # Bind tools to the LLM so it can decide which ones to call

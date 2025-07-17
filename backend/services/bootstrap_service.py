@@ -2,7 +2,7 @@
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
 from database import DBProvider
-from config import get_llm_config
+
 from core.env_loader import EnvironmentLoader
 
 
@@ -97,29 +97,7 @@ class BootstrapService:
                             'api_version': azure_config['api_version']
                         }
             
-            # Fallback to legacy config system if centralized loader doesn't have provider
-            try:
-                llm_config = get_llm_config()
-                
-                if llm_config.provider == "openai" and llm_config.openai:
-                    return {
-                        'name': 'Environment OpenAI',
-                        'provider_type': 'openai',
-                        'api_key': llm_config.openai.api_key,
-                        'model': llm_config.openai.model
-                    }
-                elif llm_config.provider == "azure" and llm_config.azure:
-                    return {
-                        'name': 'Environment Azure OpenAI',
-                        'provider_type': 'azure',
-                        'api_key': llm_config.azure.api_key,
-                        'model': llm_config.azure.model,
-                        'endpoint': llm_config.azure.endpoint,
-                        'deployment': llm_config.azure.deployment,
-                        'api_version': llm_config.azure.api_version
-                    }
-            except Exception as legacy_e:
-                print(f"Legacy config system also failed: {legacy_e}")
+
             
             return None
             
