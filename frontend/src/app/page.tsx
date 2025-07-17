@@ -26,14 +26,19 @@ export default function Home() {
     setIsLoadingConversations(true);
     try {
       const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
+      console.log('Fetching conversations from:', `${baseUrl}/api/history/`);
       const response = await fetch(`${baseUrl}/api/history/`);
+      console.log('Response status:', response.status);
       if (!response.ok) {
         throw new Error('Failed to fetch conversations');
       }
       const data = await response.json();
+      console.log('Raw API response:', data);
+      console.log('Conversations array:', data.conversations);
+      console.log('Number of conversations:', data.conversations?.length || 0);
       setConversations(data.conversations || []);
     } catch (error) {
-      console.error(error);
+      console.error('Error fetching conversations:', error);
       toast({ title: 'Error', description: 'Could not load conversations.', variant: 'destructive' });
     } finally {
       setIsLoadingConversations(false);
@@ -69,18 +74,18 @@ export default function Home() {
             rawMessagesSource = Object.values(data.messages);
           }
         }
-        
+
         const transformedMsgs = rawMessagesSource
           .filter((msg: any) => msg && msg.content && (typeof msg.content === 'string' ? msg.content.trim() !== '' : true))
           .map((msg: any) => {
             const baseMessage: Message = {
               role: msg.type === 'human' ? 'user' : 'assistant',
-              content: msg.type === 'tool' 
+              content: msg.type === 'tool'
                 ? (typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content, null, 2))
                 : msg.content,
               id: msg.id || uuidv4(), // Use uuidv4 for id generation if not present
               // @ts-ignore 
-              original: msg 
+              original: msg
             };
             if (msg.type === 'tool') {
               baseMessage.tool = true;
@@ -96,7 +101,7 @@ export default function Home() {
         console.log('Set messages in page.tsx (transformed):', transformedMsgs);
         setMessages(transformedMsgs);
         // data.thread_id è più corretto se disponibile, altrimenti selectedConversationId
-        setThreadId(data.thread_id || selectedConversationId); 
+        setThreadId(data.thread_id || selectedConversationId);
       } catch (error) {
         console.error(error);
         setMessages([
@@ -110,7 +115,7 @@ export default function Home() {
     loadConversation();
   }, [selectedConversationId]);
 
-    const handleNewChat = () => {
+  const handleNewChat = () => {
     setSelectedConversationId(null); // Deseleziona la conversazione per rimuovere l'evidenziazione
     setMessages([]); // Pulisci i messaggi visualizzati
     setThreadId(uuidv4()); // Imposta un nuovo ID univoco per la nuova sessione di chat
@@ -120,7 +125,7 @@ export default function Home() {
   const handleDeleteConversation = async (thread_id: string) => {
     try {
       console.log('Attempting to delete conversation with ID:', thread_id);
-      
+
       // Make sure we have a valid thread_id
       if (!thread_id || typeof thread_id !== 'string' || thread_id.trim() === '') {
         console.error('Invalid thread_id provided:', thread_id);
@@ -129,7 +134,7 @@ export default function Home() {
 
       // Log the current conversations for debugging
       console.log('Current conversations before deletion:', conversations);
-      
+
       // Check if the conversation exists in the current list
       const conversationExists = conversations.some(conv => conv.thread_id === thread_id);
       if (!conversationExists) {
@@ -140,10 +145,10 @@ export default function Home() {
       // Use the full URL to the backend
       const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
       const backendUrl = `${baseUrl}/api/history/${encodeURIComponent(thread_id)}`;
-      
+
       // Log the URL for debugging
       console.log('Deleting conversation with URL:', backendUrl.toString());
-      
+
       const response = await fetch(backendUrl.toString(), {
         method: 'DELETE',
         headers: {
@@ -157,7 +162,7 @@ export default function Home() {
         const errorText = await response.text();
         console.error('Delete error response:', response.status, errorText);
         let errorMessage = 'Impossibile eliminare la conversazione';
-        
+
         try {
           const errorData = JSON.parse(errorText);
           errorMessage = errorData.detail || errorMessage;
@@ -165,7 +170,7 @@ export default function Home() {
           // If we can't parse the error as JSON, use the raw text
           errorMessage = errorText || errorMessage;
         }
-        
+
         throw new Error(errorMessage);
       }
 
@@ -211,10 +216,10 @@ export default function Home() {
             <TopNav />
             {/* Provider Status Indicator */}
             <ProviderStatusIndicator />
-            
+
             {/* Provider Alert (only shows if there are issues) */}
             <ProviderAlert />
-            <ChatInterface 
+            <ChatInterface
               messages={messages}
               setMessages={setMessages}
               isLoading={isLoading}

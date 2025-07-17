@@ -3,14 +3,16 @@ API endpoints for chat history management, compatible with LangGraph's AsyncSqli
 v0.1.2
 """
 import logging
+import os
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-import os
-
-# --- Configuration ---
 import pathlib
+
+# Load environment variables using centralized loader
+from core.env_loader import EnvironmentLoader
+EnvironmentLoader.load_environment()
 
 # --- Configuration ---
 # Costruisce un percorso assoluto per il database per garantire l'affidabilità.
@@ -99,7 +101,7 @@ async def list_conversations():
     logger.debug(f"File permissions: {os.stat(DB_PATH).st_mode:o}")
     
     # Log environment variables for debugging
-    logger.debug(f"Environment variables: {os.environ.get('DATABASE_URL', 'Not set')}")
+    logger.debug(f"Environment variables: {EnvironmentLoader.get_database_url()}")
     conversations_data = []
     try:
         # 1. Get all thread_ids and their latest checkpoint_ns (which is used as the timestamp)

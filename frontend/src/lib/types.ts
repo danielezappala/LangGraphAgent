@@ -9,6 +9,6 @@ export interface Message {
 
 export interface Conversation {
   thread_id: string;
-  last_message_ts: string;
+  last_message_ts: string | null;
   preview: string;
 }
