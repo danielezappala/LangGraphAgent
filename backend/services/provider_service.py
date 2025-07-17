@@ -4,9 +4,16 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from database import DBProvider
-from .config_service import ConfigService
 import requests
 import time
+from datetime import datetime
+
+
+class ValidationResult(BaseModel):
+    """Result of provider configuration validation."""
+    is_valid: bool
+    errors: List[str] = []
+    warnings: List[str] = []
 
 
 class TestResult(BaseModel):
@@ -17,12 +24,20 @@ class TestResult(BaseModel):
     error_details: Optional[str] = None
 
 
+class ProviderStatus(BaseModel):
+    """Overall provider configuration status."""
+    has_active_provider: bool
+    active_provider_name: Optional[str] = None
+    total_providers: int = 0
+    configuration_source: str  # 'database'
+    issues: List[str] = []
+
+
 class ProviderService:
     """Service for managing LLM provider CRUD operations."""
     
     def __init__(self, db: Session):
         self.db = db
-        self.config_service = ConfigService(db)
     
     def list_all_providers(self) -> List[Dict[str, Any]]:
         """List all providers from database (Database-First approach)."""
@@ -59,7 +74,27 @@ class ProviderService:
     def get_active_provider(self) -> Optional[Dict[str, Any]]:
         """Get the currently active provider."""
         try:
-            return self.config_service.get_active_provider()
+            db_provider = self.db.query(DBProvider).filter(DBProvider.is_active == True).first()
+            
+            if db_provider:
+                return {
+                    'id': db_provider.id,
+                    'name': db_provider.name,
+                    'provider_type': db_provider.provider_type,
+                    'api_key': db_provider.api_key,
+                    'model': db_provider.model,
+                    'endpoint': db_provider.endpoint,
+                    'deployment': db_provider.deployment,
+                    'api_version': db_provider.api_version,
+                    'is_active': db_provider.is_active,
+                    'is_from_env': db_provider.is_from_env,
+                    'is_valid': db_provider.is_valid,
+                    'connection_status': db_provider.connection_status,
+                    'last_tested': db_provider.last_tested.isoformat() if db_provider.last_tested else None,
+                    'source': 'database'
+                }
+            
+            return None
             
         except Exception as e:
             print(f"Error getting active provider: {e}")
@@ -69,7 +104,7 @@ class ProviderService:
         """Create a new provider configuration."""
         try:
             # Validate configuration
-            validation = self.config_service.validate_provider_config(config)
+            validation = self.validate_provider_config(config)
             if not validation.is_valid:
                 raise ValueError(f"Invalid configuration: {', '.join(validation.errors)}")
             
@@ -126,7 +161,7 @@ class ProviderService:
                 raise ValueError("Provider not found")
             
             # Validate configuration
-            validation = self.config_service.validate_provider_config(config)
+            validation = self.validate_provider_config(config)
             if not validation.is_valid:
                 raise ValueError(f"Invalid configuration: {', '.join(validation.errors)}")
             
@@ -206,7 +241,7 @@ class ProviderService:
                 'api_version': provider.api_version
             }
             
-            validation = self.config_service.validate_provider_config(provider_config)
+            validation = self.validate_provider_config(provider_config)
             if not validation.is_valid:
                 raise ValueError(f"Cannot activate invalid provider: {', '.join(validation.errors)}")
             
@@ -237,6 +272,90 @@ class ProviderService:
             self.db.rollback()
             print(f"Error setting active provider: {e}")
             raise ValueError(f"Failed to set active provider: {str(e)}")
+    
+    def validate_provider_config(self, config: Dict[str, Any]) -> ValidationResult:
+        """Validate a provider configuration."""
+        errors = []
+        warnings = []
+        
+        # Required fields validation
+        if not config.get('name'):
+            errors.append("Provider name is required")
+        
+        if not config.get('provider_type'):
+            errors.append("Provider type is required")
+        elif config['provider_type'] not in ['openai', 'azure']:
+            errors.append("Provider type must be 'openai' or 'azure'")
+        
+        if not config.get('api_key'):
+            errors.append("API key is required")
+        elif len(config['api_key']) < 10:
+            warnings.append("API key seems too short")
+        
+        # Provider-specific validation
+        if config.get('provider_type') == 'azure':
+            if not config.get('endpoint'):
+                errors.append("Endpoint is required for Azure OpenAI")
+            elif not config['endpoint'].startswith('https://'):
+                errors.append("Azure endpoint must start with https://")
+            
+            if not config.get('deployment'):
+                errors.append("Deployment name is required for Azure OpenAI")
+            
+            if not config.get('api_version'):
+                warnings.append("API version not specified, using default")
+        
+        return ValidationResult(
+            is_valid=len(errors) == 0,
+            errors=errors,
+            warnings=warnings
+        )
+    
+    def get_provider_status(self) -> ProviderStatus:
+        """Get overall provider configuration status."""
+        try:
+            active_provider = self.get_active_provider()
+            total_providers = self.db.query(DBProvider).count()
+            issues = []
+            
+            has_active = active_provider is not None
+            active_name = active_provider.get('name') if active_provider else None
+            
+            # Check for common issues
+            if not has_active:
+                issues.append("No active provider configured")
+            
+            if total_providers == 0:
+                issues.append("No providers configured in database")
+            
+            return ProviderStatus(
+                has_active_provider=has_active,
+                active_provider_name=active_name,
+                total_providers=total_providers,
+                configuration_source='database',  # Always database in Database-First approach
+                issues=issues
+            )
+            
+        except Exception as e:
+            return ProviderStatus(
+                has_active_provider=False,
+                total_providers=0,
+                configuration_source='error',
+                issues=[f"Error checking provider status: {str(e)}"]
+            )
+    
+    def update_provider_connection_status(self, provider_id: int, test_result: TestResult) -> None:
+        """Update provider connection status after testing."""
+        try:
+            provider = self.db.query(DBProvider).filter(DBProvider.id == provider_id).first()
+            if provider:
+                provider.connection_status = 'connected' if test_result.success else 'failed'
+                provider.is_valid = test_result.success
+                provider.last_tested = datetime.utcnow()
+                self.db.commit()
+        except Exception as e:
+            print(f"Error updating provider connection status: {e}")
+            self.db.rollback()
     
     def test_provider_connection(self, config: Dict[str, Any]) -> TestResult:
         """Test connection to a provider."""

@@ -2,7 +2,7 @@ import sqlite3
 import os
 
 def check_database():
-    db_path = 'langgraph_agent.db'
+    db_path = 'backend/langgraph_agent.db'
     print(f"Checking database at: {os.path.abspath(db_path)}")
     
     if not os.path.exists(db_path):

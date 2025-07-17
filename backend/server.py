@@ -71,9 +71,9 @@ async def lifespan(app: FastAPI):
     bootstrap_service.run_bootstrap_if_needed()
     
     # Get active provider from database (single source of truth)
-    from services.config_service import get_config_service
-    config_service = get_config_service(db)
-    active_provider_config = config_service.get_active_provider()
+    from services.provider_service import get_provider_service
+    provider_service = get_provider_service(db)
+    active_provider_config = provider_service.get_active_provider()
     
     if active_provider_config:
         print(f"Active provider: {active_provider_config['name']} ({active_provider_config['provider_type']})")

@@ -7,7 +7,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from database import DBProvider, get_db
-from services.config_service import get_config_service
+
 from services.provider_service import get_provider_service
 
 router = APIRouter()
@@ -209,8 +209,8 @@ async def test_provider_connection(provider_id: int, db: Session = Depends(get_d
 async def get_provider_status(db: Session = Depends(get_db)):
     """Get overall provider configuration status."""
     try:
-        config_service = get_config_service(db)
-        status = config_service.get_provider_status()
+        provider_service = get_provider_service(db)
+        status = provider_service.get_provider_status()
         
         return {
             "has_active_provider": status.has_active_provider,
@@ -223,21 +223,6 @@ async def get_provider_status(db: Session = Depends(get_db)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-
-@router.post("/sync")
-async def sync_providers(db: Session = Depends(get_db)):
-    """Force sync between .env and database configurations."""
-    try:
-        config_service = get_config_service(db)
-        success = config_service.sync_env_to_database()
-        
-        if success:
-            return {"message": "Providers synchronized successfully"}
-        else:
-            return {"message": "No environment configuration found to sync"}
-            
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 def update_environment_vars(provider: DBProvider):
