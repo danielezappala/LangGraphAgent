@@ -94,14 +94,17 @@ def get_last_human_message_preview(checkpoint: Dict[str, Any]) -> str:
 @router.get("/", response_model=ConversationListResponse)
 async def list_conversations():
     """Restituisce la lista di tutte le conversazioni con i loro metadati."""
-    logger.info("Listing all conversations")
+    logger.info("=== LISTING ALL CONVERSATIONS ===")
     logger.debug(f"Database path: {DB_PATH}")
     logger.debug(f"Current working directory: {os.getcwd()}")
     logger.debug(f"File exists: {os.path.exists(DB_PATH)}")
-    logger.debug(f"File permissions: {os.stat(DB_PATH).st_mode:o}")
+    
+    if os.path.exists(DB_PATH):
+        logger.debug(f"File permissions: {os.stat(DB_PATH).st_mode:o}")
+        logger.debug(f"File size: {os.path.getsize(DB_PATH)} bytes")
     
     # Log environment variables for debugging
-    logger.debug(f"Environment variables: {EnvironmentLoader.get_database_url()}")
+    logger.debug(f"Environment database URL: {EnvironmentLoader.get_database_url()}")
     conversations_data = []
     try:
         # 1. Get all thread_ids and their latest checkpoint_ns (which is used as the timestamp)
@@ -115,11 +118,19 @@ async def list_conversations():
                 ORDER BY last_checkpoint_ns DESC
             """)
             rows = await cursor.fetchall()
+            logger.info(f"Database query returned {len(rows)} thread(s)")
+            
             if not rows:
-                logger.info("Nessuna conversazione trovata nel database.")
+                logger.warning("❌ Nessuna conversazione trovata nel database!")
+                # Let's also check if the checkpoints table exists and has any data
+                cursor = await conn.execute("SELECT COUNT(*) FROM checkpoints")
+                total_checkpoints = await cursor.fetchone()
+                logger.warning(f"Total checkpoints in database: {total_checkpoints[0] if total_checkpoints else 0}")
                 return ConversationListResponse(conversations=[])
+            
             # Store as a list of tuples (thread_id, last_checkpoint_ns)
             thread_info_list = [(row[0], row[1]) for row in rows]
+            logger.info(f"✅ Found {len(thread_info_list)} conversation threads to process")
 
         # 2. For each thread, get the checkpoint content for preview
         async with AsyncSqliteSaver.from_conn_string(DB_PATH) as checkpointer:

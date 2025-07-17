@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "env-cmd -f ../.env -f .env next dev --turbopack -p ${FRONTEND_PORT:-9002}",
-    "build": "env-cmd -f ../.env -f .env next build",
-    "start": "env-cmd -f ../.env -f .env next start -p ${FRONTEND_PORT:-9002}",
+    "dev": "env-cmd -f ../.env --no-override next dev --turbopack -p ${FRONTEND_PORT:-9002}",
+    "build": "env-cmd -f ../.env --no-override next build",
+    "start": "env-cmd -f ../.env --no-override next start -p ${FRONTEND_PORT:-9002}",
     "lint": "next lint",
     "typecheck": "tsc --noEmit"
   },
