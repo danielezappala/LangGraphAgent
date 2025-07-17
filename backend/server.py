@@ -10,17 +10,14 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import sys
 
-# Import database models to create tables
-from database import engine, Base, get_db
+# Import unified database system
+from unified_database import get_unified_db, UnifiedAsyncSqliteSaver
 
 # Import dei moduli API
 from api import chat, ping, history
 from api.version_router import router as version_router
 
 from api.providers import router as providers_router
-
-# Import relativi standard per un'applicazione FastAPI
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 from version import __version__
 from graph_definition import build_graph
@@ -59,53 +56,55 @@ async def lifespan(app: FastAPI):
     """Gestisce l'avvio e lo spegnimento del server."""
     print("Avvio del server in corso...")
 
-    # Create database tables if they don't exist
-    Base.metadata.create_all(bind=engine)
+    # Initialize unified database system
+    unified_db = get_unified_db()
+    print(f"Unified database initialized at: {unified_db.db_path}")
     
-    # Initialize database session
-    db = next(get_db())
+    # Initialize database session using unified database
+    db = unified_db.get_session()
     
-    # Run bootstrap process if needed (Database-First approach)
-    from services.bootstrap_service import get_bootstrap_service
-    bootstrap_service = get_bootstrap_service(db)
-    bootstrap_service.run_bootstrap_if_needed()
-    
-    # Get active provider from database (single source of truth)
-    from services.provider_service import get_provider_service
-    provider_service = get_provider_service(db)
-    active_provider_config = provider_service.get_active_provider()
-    
-    if active_provider_config:
-        print(f"Active provider: {active_provider_config['name']} ({active_provider_config['provider_type']})")
-        # Update environment variables for LLM runtime compatibility
-        _update_runtime_env_vars(active_provider_config)
-    else:
-        print("Warning: No active provider configured. Please set up a provider in the settings.")
-    
-    # Close the database session
-    db.close()
-
-    # Inizializza il checkpointer per la persistenza del database SQLite.
-    db_path = pathlib.Path(__file__).parent / "data" / "chatbot_memory.sqlite"
-    db_path.parent.mkdir(exist_ok=True)
-
-    # Crea il context manager per il checkpointer
-    checkpointer_cm = AsyncSqliteSaver.from_conn_string(str(db_path))
-
-    # Entra nel contesto del checkpointer e lo rende disponibile per tutta la durata dell'app
-    async with checkpointer_cm as checkpointer:
-        app.state.checkpointer = checkpointer
+    try:
+        # Run bootstrap process if needed (Database-First approach)
+        from services.bootstrap_service import get_bootstrap_service
+        bootstrap_service = get_bootstrap_service(db)
+        bootstrap_service.run_bootstrap_if_needed()
         
-        # Costruisce il grafo con il checkpointer attivo
-        graph = await build_graph(checkpointer)
-        app.state.graph = graph
+        # Get active provider from database (single source of truth)
+        from services.provider_service import get_provider_service
+        provider_service = get_provider_service(db)
+        active_provider_config = provider_service.get_active_provider()
         
-        print(f"Backend version: {__version__}")
-        print("Grafo e checkpointer inizializzati e pronti.")
-        
-        yield
+        if active_provider_config:
+            print(f"Active provider: {active_provider_config['name']} ({active_provider_config['provider_type']})")
+            # Update environment variables for LLM runtime compatibility
+            _update_runtime_env_vars(active_provider_config)
+        else:
+            print("Warning: No active provider configured. Please set up a provider in the settings.")
+    
+    finally:
+        # Close the database session
+        db.close()
+
+    # Initialize unified checkpointer using the same database
+    checkpointer = UnifiedAsyncSqliteSaver(unified_db)
+    print("Unified checkpointer initialized using unified database")
+
+    # Store checkpointer and unified database in app state
+    app.state.checkpointer = checkpointer
+    app.state.unified_db = unified_db
+    
+    # Costruisce il grafo con il checkpointer attivo
+    graph = await build_graph(checkpointer)
+    app.state.graph = graph
+    
+    print(f"Backend version: {__version__}")
+    print("Grafo e checkpointer inizializzati e pronti con unified database.")
+    
+    yield
 
     print("Server in fase di spegnimento.")
+    # Clean up unified database connections
+    unified_db.close()
 
 app = FastAPI(
     title="LangGraph Agent API",
@@ -136,10 +135,12 @@ app.include_router(history.router, prefix="/api/history", tags=["history"])
 # Add database middleware
 @app.middleware("http")
 async def db_session_middleware(request: Request, call_next):
-    """Middleware to manage database sessions for each request."""
+    """Middleware to manage database sessions for each request using unified database."""
     response = None
     try:
-        request.state.db = next(get_db())
+        # Use unified database for session management
+        unified_db = get_unified_db()
+        request.state.db = unified_db.get_session()
         response = await call_next(request)
     except Exception as e:
         print(f"Database error: {e}")
@@ -151,8 +152,6 @@ async def db_session_middleware(request: Request, call_next):
         if hasattr(request.state, 'db'):
             request.state.db.close()
     return response
-    print(f"Errore durante l'inclusione dei router: {e}")
-    raise
 
 # Gestore globale delle eccezioni
 @app.exception_handler(Exception)

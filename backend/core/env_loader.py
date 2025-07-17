@@ -50,7 +50,10 @@ class EnvironmentLoader:
     @staticmethod
     def get_database_url() -> str:
         """Get database URL with fallback logic."""
-        return os.getenv("DATABASE_URL", "sqlite:///./backend/langgraph_agent.db")
+        # Use absolute path for database to avoid path issues
+        backend_dir = pathlib.Path(__file__).parent.parent
+        default_db_path = backend_dir / "langgraph_agent.db"
+        return os.getenv("DATABASE_URL", f"sqlite:///{default_db_path}")
     
     @staticmethod
     def get_api_config() -> Dict[str, Any]:

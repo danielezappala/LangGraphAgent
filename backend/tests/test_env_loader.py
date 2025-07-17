@@ -26,7 +26,9 @@ class TestEnvironmentLoader:
         """Test database URL with default value."""
         with patch.dict(os.environ, {}, clear=True):
             url = EnvironmentLoader.get_database_url()
-            assert url == "sqlite:///./backend/langgraph_agent.db"
+            # Should use absolute path now
+            assert url.startswith("sqlite:///")
+            assert url.endswith("langgraph_agent.db")
     
     def test_get_database_url_custom(self):
         """Test database URL with custom value."""

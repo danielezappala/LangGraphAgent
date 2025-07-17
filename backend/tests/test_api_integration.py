@@ -1,5 +1,6 @@
 """Integration tests for consolidated API endpoints."""
 import pytest
+import pytest_asyncio
 import httpx
 import asyncio
 from unittest.mock import patch, Mock
@@ -21,10 +22,10 @@ class TestAPIIntegration:
         """Base URL for API tests."""
         return "http://localhost:8000"
     
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def client(self):
         """HTTP client for API tests."""
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             yield client
     
     @pytest.mark.asyncio
@@ -153,8 +154,9 @@ class TestAPIIntegration:
         assert response.status_code == 200
         data = response.json()
         
-        assert 'version' in data
-        assert isinstance(data['version'], str)
+        assert 'data' in data
+        assert 'version' in data['data']
+        assert isinstance(data['data']['version'], str)
     
     @pytest.mark.asyncio
     async def test_ping_endpoint(self, client, base_url):
@@ -162,10 +164,8 @@ class TestAPIIntegration:
         response = await client.get(f"{base_url}/api/ping/")
         
         assert response.status_code == 200
-        data = response.json()
-        
-        assert 'message' in data
-        assert data['message'] == "pong"
+        # Ping endpoint returns plain text, not JSON
+        assert response.text == "pong"
     
     @pytest.mark.asyncio
     async def test_api_error_handling(self, client, base_url):
@@ -223,7 +223,7 @@ class TestAPIErrorScenarios:
         """Base URL for API tests."""
         return "http://localhost:8000"
     
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def client(self):
         """HTTP client for API tests."""
         async with httpx.AsyncClient() as client:

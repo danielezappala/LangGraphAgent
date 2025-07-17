@@ -227,3 +227,81 @@
   - Test conversation functionality with new components
   - Test error scenarios and recovery
   - _Requirements: All requirements - end-to-end validation_
+
+## Phase 6: Database Unification (New Phase)
+
+- [x] 7. Unify database architecture for better maintainability
+  - Consolidate SQLite databases into single unified database
+  - Create adapter for LangGraph compatibility
+  - Migrate existing data safely
+  - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
+
+- [x] 7.1 Design unified database schema
+  - Create unified database schema combining application and checkpoint data
+  - Design SQLAlchemy models for LangGraph checkpoint tables
+  - Create adapter interface for LangGraph compatibility
+  - Plan data migration strategy from existing databases
+  - _Requirements: 7.1, 7.2_
+
+- [x] 7.2 Implement unified database system
+  - Create new unified database models in database.py
+  - Implement UnifiedAsyncSqliteSaver adapter for LangGraph
+  - Update database connection configuration
+  - Create migration scripts for existing data
+  - _Requirements: 7.3, 7.4_
+
+- [x] 7.3 Migrate existing data to unified database
+  - Backup existing databases (chatbot_memory.sqlite and langgraph_agent.db)
+  - Run data migration scripts to move data to unified database
+  - Validate data integrity after migration
+  - Update all database references to use unified database
+  - _Requirements: 7.3, 7.5_
+
+- [x] 7.4 Update application to use unified database
+  - Update server.py to use unified database for both app data and checkpoints
+  - Update all services to use unified database connection
+  - Update API endpoints to work with unified database
+  - Test all functionality with unified database
+  - _Requirements: 7.4, 7.5_
+
+- [ ] 7.5 Clean up old database files and validate system
+  - Remove old database files after successful migration
+  - Update backup and maintenance scripts
+  - Perform comprehensive testing of unified database system
+  - Update documentation to reflect unified database architecture
+  - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5_
+
+## Phase 7: Final Cleanup Tasks
+
+- [ ] 8. Remove remaining unused dependencies and clean up final details
+  - Remove unused frontend dependencies (genkit package still in package.json)
+  - Update application files to use centralized environment loader
+  - Final performance validation and documentation updates
+  - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 9.1, 9.2, 9.3, 9.4, 9.5_
+
+- [ ] 8.1 Remove unused frontend dependencies
+  - Remove genkit package from package.json (currently unused but still listed)
+  - Update package-lock.json and verify build still works
+  - Test that all functionality works after dependency removal
+  - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
+
+- [ ] 8.2 Update backend files to use centralized environment loader
+  - Update remaining backend files to import and use EnvironmentLoader
+  - Remove any remaining direct load_dotenv() calls if they exist
+  - Ensure consistent environment loading across all backend modules
+  - Test that environment loading works correctly in all scenarios
+  - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
+
+- [ ] 8.3 Final code cleanup and validation
+  - Remove any remaining unused imports in both frontend and backend
+  - Clean up commented-out code (especially genkit-related comments)
+  - Fix any remaining linting warnings
+  - Ensure all code follows consistent formatting
+  - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
+
+- [ ] 8.4 Final performance validation and documentation
+  - Measure final bundle size reduction compared to original
+  - Validate that all API endpoints perform as expected
+  - Update project documentation to reflect simplified architecture
+  - Create final summary of changes and improvements achieved
+  - _Requirements: All requirements - final validation and documentation_

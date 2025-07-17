@@ -1,13 +1,13 @@
 """
-API endpoints for chat history management, compatible with LangGraph's AsyncSqliteSaver.
-v0.1.2
+API endpoints for chat history management, compatible with unified database system.
+v0.1.3 - Updated for unified database
 """
 import logging
 import os
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from unified_database import get_unified_db, UnifiedAsyncSqliteSaver
 import pathlib
 
 # Load environment variables using centralized loader
@@ -15,8 +15,13 @@ from core.env_loader import EnvironmentLoader
 EnvironmentLoader.load_environment()
 
 # --- Configuration ---
-# Costruisce un percorso assoluto per il database per garantire l'affidabilità.
-DB_PATH = str(pathlib.Path(__file__).parent.parent / "data" / "chatbot_memory.sqlite")
+# Use unified database system
+def get_db_path() -> str:
+    """Get the unified database path."""
+    unified_db = get_unified_db()
+    return unified_db.db_path
+
+DB_PATH = get_db_path()
 # logging.basicConfig(level=logging.INFO) # Uvicorn's logger will handle basicConfig
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG) # Explicitly set this logger to DEBUG
@@ -133,7 +138,9 @@ async def list_conversations():
             logger.info(f"✅ Found {len(thread_info_list)} conversation threads to process")
 
         # 2. For each thread, get the checkpoint content for preview
-        async with AsyncSqliteSaver.from_conn_string(DB_PATH) as checkpointer:
+        unified_db = get_unified_db()
+        checkpointer = UnifiedAsyncSqliteSaver(unified_db)
+        async with checkpointer:
             for thread_id, last_checkpoint_ns in thread_info_list:
                 try:
                     # Get the latest checkpoint for this thread
@@ -248,7 +255,9 @@ async def get_conversation_detail(thread_id: str):
     """
     config = {"configurable": {"thread_id": thread_id}}
     try:
-        async with AsyncSqliteSaver.from_conn_string(DB_PATH) as checkpointer:
+        unified_db = get_unified_db()
+        checkpointer = UnifiedAsyncSqliteSaver(unified_db)
+        async with checkpointer:
             checkpoint_tuple = await checkpointer.aget_tuple(config)
             if not checkpoint_tuple or not checkpoint_tuple.checkpoint:
                 logger.warning(f"No valid checkpoint found for thread_id: {thread_id}")

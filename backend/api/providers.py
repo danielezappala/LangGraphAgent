@@ -6,7 +6,8 @@ import os
 from datetime import datetime
 from sqlalchemy.orm import Session
 
-from database import DBProvider, get_db
+from unified_database import DBProvider
+from database import get_db
 
 from services.provider_service import get_provider_service
 

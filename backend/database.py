@@ -1,72 +1,65 @@
-"""Database models and session management for the application."""
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, Text, DateTime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session, scoped_session
+"""Database models and session management for the application.
+
+This module now uses the unified database system while maintaining full
+compatibility with existing code.
+"""
+
+from sqlalchemy.orm import Session
 from datetime import datetime
+
+# Import from unified database system
+from unified_database import (
+    UnifiedDatabase, 
+    get_unified_db, 
+    get_unified_session,
+    DBProvider,  # Re-export for compatibility
+    Checkpoint,  # Available for future use
+    Write,       # Available for future use
+)
 
 # Load environment variables using centralized loader
 from core.env_loader import EnvironmentLoader
 EnvironmentLoader.load_environment()
 
-# Get the database URL from centralized environment loader
-DATABASE_URL = EnvironmentLoader.get_database_url()
+# ===== COMPATIBILITY LAYER =====
+# These maintain compatibility with existing code
 
-# Create a SQLAlchemy engine
-engine = create_engine(
-    DATABASE_URL, connect_args={"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-)
+# Legacy engine and session references (for compatibility)
+_unified_db = get_unified_db()
+engine = _unified_db.engine
+SessionLocal = _unified_db.SessionLocal
 
-# Create a scoped session factory
-SessionLocal = scoped_session(
-    sessionmaker(autocommit=False, autoflush=False, bind=engine)
-)
-
-# Base class for all models
-Base = declarative_base()
+# Legacy Base reference (for compatibility)
+from unified_database import Base
 
 def get_db() -> Session:
-    """Get a database session."""
-    db = SessionLocal()
+    """Get a database session - maintains compatibility with existing code."""
+    session = get_unified_session()
     try:
-        yield db
+        yield session
     finally:
-        db.close()
+        session.close()
 
-class DBProvider(Base):
-    """Database model for LLM providers."""
-    __tablename__ = "llm_providers"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(100), nullable=False, unique=True)
-    provider_type = Column(String(20), nullable=False)  # 'openai' or 'azure'
-    is_active = Column(Boolean, default=False, nullable=False)
-    
-    # Common fields for all providers
-    api_key = Column(String(255), nullable=False)
-    model = Column(String(100))
-    
-    # Azure-specific fields
-    endpoint = Column(String(255))
-    deployment = Column(String(100))
-    api_version = Column(String(20))
-    
-    # Enhanced fields for better functionality
-    is_from_env = Column(Boolean, default=False, nullable=False)  # Indicates if loaded from .env
-    is_valid = Column(Boolean, default=True, nullable=False)  # Configuration validation status
-    validation_errors = Column(Text)  # JSON string of validation errors
-    last_tested = Column(DateTime)  # Last connection test timestamp
-    connection_status = Column(String(20), default='untested')  # 'connected', 'failed', 'untested'
-    
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    def __repr__(self) -> str:
-        return f"<Provider(id={self.id}, name='{self.name}', type='{self.provider_type}', active={self.is_active})>"
-
-# Create all tables
 def init_db():
-    """Initialize the database by creating all tables."""
-    Base.metadata.create_all(bind=engine)
+    """Initialize the database by creating all tables - compatibility function."""
+    # The unified database handles initialization automatically
+    print("Database initialization handled by unified database system")
 
-# Initialize the database when this module is imported
+# ===== EXPORTS =====
+# Export everything that existing code expects
+
+__all__ = [
+    'DBProvider',
+    'Checkpoint', 
+    'Write',
+    'Base',
+    'engine',
+    'SessionLocal',
+    'get_db',
+    'init_db',
+    'get_unified_db',
+    'get_unified_session',
+]
+
+# Initialize database (compatibility)
 init_db()
