@@ -4,7 +4,7 @@ Utility functions for working with LangGraph checkpoints in the database.
 import os
 import pickle
 import sqlite3
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any
 from dataclasses import dataclass
 from datetime import datetime
 

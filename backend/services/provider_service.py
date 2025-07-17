@@ -4,9 +4,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from database import DBProvider
-from .config_service import ConfigService, ValidationResult
+from .config_service import ConfigService
 import requests
-import json
 import time
 
 

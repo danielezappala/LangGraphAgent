@@ -1,15 +1,14 @@
 """API endpoints for managing LLM providers."""
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
-from typing import List, Literal, Optional, Dict, Any
+from typing import Literal, Optional
 import os
-import json
 from datetime import datetime
 from sqlalchemy.orm import Session
 
 from database import DBProvider, get_db
-from services.config_service import get_config_service, ProviderStatus
-from services.provider_service import get_provider_service, TestResult
+from services.config_service import get_config_service
+from services.provider_service import get_provider_service
 
 router = APIRouter()
 

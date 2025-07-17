@@ -1,19 +1,14 @@
 import os
 from contextlib import asynccontextmanager
 import pathlib
-from dotenv import load_dotenv
 
-# Carica le variabili d'ambiente
-# Prima carica il file .env nella directory principale (condiviso)
-load_dotenv()
-# Poi sovrascrivi con le variabili specifiche del backend
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=True)
-from fastapi import APIRouter, FastAPI, Request, status, Depends
-from fastapi.responses import JSONResponse, PlainTextResponse
+# Load environment variables using centralized loader
+from core.env_loader import EnvironmentLoader
+EnvironmentLoader.load_environment()
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.exceptions import HTTPException as StarletteHTTPException
 import sys
-from sqlalchemy.orm import Session
 
 # Import database models to create tables
 from database import engine, Base, get_db
@@ -22,7 +17,7 @@ from database import engine, Base, get_db
 from api import chat, ping, history
 from api.version_router import router as version_router
 from api.config import router as config_router
-from api.providers import router as providers_router, get_active_provider_config, update_environment_vars
+from api.providers import router as providers_router
 
 # Import relativi standard per un'applicazione FastAPI
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
@@ -63,7 +58,6 @@ def _update_runtime_env_vars(provider_config: dict):
 async def lifespan(app: FastAPI):
     """Gestisce l'avvio e lo spegnimento del server."""
     print("Avvio del server in corso...")
-    load_dotenv(dotenv_path=pathlib.Path(__file__).parent / '.env')
 
     # Create database tables if they don't exist
     Base.metadata.create_all(bind=engine)

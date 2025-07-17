@@ -1,8 +1,11 @@
 import os
 import asyncio
 from pprint import pprint
-from dotenv import load_dotenv
-from config import get_llm_config, LLMConfig, OpenAIConfig, AzureOpenAIConfig
+
+# Load environment variables using centralized loader
+from core.env_loader import EnvironmentLoader
+EnvironmentLoader.load_environment()
+from config import get_llm_config
 
 def print_env_vars():
     """Print relevant environment variables for debugging."""
@@ -45,10 +48,7 @@ async def test_azure_connection():
     print("\n=== Starting Azure OpenAI Connection Test ===")
     env_vars = print_env_vars()
     
-    # Explicitly load .env file
-    dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
-    print(f"\nLoading .env file from: {dotenv_path}")
-    load_dotenv(dotenv_path, override=True)
+    # Environment variables already loaded by centralized loader
     
     try:
         # Load configuration
@@ -61,7 +61,7 @@ async def test_azure_connection():
         if config.provider != "azure":
             print(f"\n❌ ERRORE: LLM_PROVIDER non è impostato su 'azure' (attuale: {config.provider})")
             print("Per favore verifica il file .env o imposta LLM_PROVIDER=azure")
-            print(f"Environment LLM_PROVIDER: {os.getenv('LLM_PROVIDER')}")
+            print(f"Environment LLM_PROVIDER: {EnvironmentLoader.get_llm_provider()}")
             return
             
         if not config.azure:

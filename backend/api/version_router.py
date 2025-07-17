@@ -2,7 +2,6 @@
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 import sys
-import os
 from pathlib import Path
 
 # Add parent directory to path to import version

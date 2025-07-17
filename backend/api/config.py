@@ -2,9 +2,11 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Literal, Optional
-import os
-import json
 from pathlib import Path
+
+# Load environment variables using centralized loader
+from core.env_loader import EnvironmentLoader
+EnvironmentLoader.load_environment()
 
 router = APIRouter()
 
@@ -21,21 +23,23 @@ class ProviderConfig(BaseModel):
 @router.get("/config")
 async def get_config() -> ProviderConfig:
     """Get current LLM provider configuration."""
-    env_file = Path(".env")
-    config = {"provider": os.getenv("LLM_PROVIDER", "openai")}
+    provider = EnvironmentLoader.get_llm_provider() or "openai"
+    config = {"provider": provider}
     
-    if config["provider"] == "openai":
+    if provider == "openai":
+        openai_config = EnvironmentLoader.get_openai_config()
         config.update({
-            "openai_api_key": os.getenv("OPENAI_API_KEY"),
-            "openai_model": os.getenv("OPENAI_MODEL", "gpt-4"),
-            "openai_temperature": float(os.getenv("OPENAI_TEMPERATURE", "0.7")),
+            "openai_api_key": openai_config['api_key'],
+            "openai_model": openai_config['model'],
+            "openai_temperature": openai_config['temperature'],
         })
     else:  # azure
+        azure_config = EnvironmentLoader.get_azure_config()
         config.update({
-            "azure_api_key": os.getenv("AZURE_OPENAI_API_KEY"),
-            "azure_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
-            "azure_deployment": os.getenv("AZURE_OPENAI_DEPLOYMENT", "gpt-4"),
-            "azure_api_version": os.getenv("AZURE_OPENAI_API_VERSION", "2023-05-15"),
+            "azure_api_key": azure_config['api_key'],
+            "azure_endpoint": azure_config['endpoint'],
+            "azure_deployment": azure_config['deployment'],
+            "azure_api_version": azure_config['api_version'],
         })
     
     return ProviderConfig(**config)

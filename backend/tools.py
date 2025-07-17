@@ -1,24 +1,25 @@
-import os
-from dotenv import load_dotenv
 from langchain_tavily import TavilySearch
 from langchain_core.tools import tool
-from typing import Optional
 
-# Carica le variabili d'ambiente dal file .env
-dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
-load_dotenv(dotenv_path=dotenv_path)
+# Load environment variables using centralized loader
+from core.env_loader import EnvironmentLoader
+EnvironmentLoader.load_environment()
 
 # Get the provider from environment variables
-PROVIDER = os.getenv("LLM_PROVIDER", "openai").lower()
+PROVIDER = (EnvironmentLoader.get_llm_provider() or "openai").lower()
 
 # Validate API keys based on provider
-if PROVIDER == "openai" and not os.getenv("OPENAI_API_KEY"):
+openai_config = EnvironmentLoader.get_openai_config()
+azure_config = EnvironmentLoader.get_azure_config()
+
+if PROVIDER == "openai" and not openai_config['api_key']:
     raise RuntimeError("OPENAI_API_KEY is required when using OpenAI provider")
-elif PROVIDER == "azure" and not os.getenv("AZURE_OPENAI_API_KEY"):
+elif PROVIDER == "azure" and not azure_config['api_key']:
     raise RuntimeError("AZURE_OPENAI_API_KEY is required when using Azure provider")
 
 # TAVILY is optional but recommended
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
+external_keys = EnvironmentLoader.get_external_api_keys()
+TAVILY_API_KEY = external_keys['tavily']
 if not TAVILY_API_KEY:
     print("Warning: TAVILY_API_KEY not found. Web search functionality will be disabled.")
 

@@ -1,6 +1,9 @@
 import os
-from typing import Annotated, List, Optional
-from dotenv import load_dotenv
+from typing import Annotated, List
+
+# Load environment variables using centralized loader
+from core.env_loader import EnvironmentLoader
+EnvironmentLoader.load_environment()
 from langchain_openai import ChatOpenAI, AzureChatOpenAI
 from langchain_core.messages import BaseMessage
 from langgraph.graph import StateGraph

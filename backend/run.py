@@ -3,21 +3,17 @@
 Script di avvio personalizzato per il server FastAPI.
 Utilizza le variabili d'ambiente per la configurazione.
 """
-import os
-from dotenv import load_dotenv
 import uvicorn
-from server import app
+from core.env_loader import EnvironmentLoader
 
 if __name__ == "__main__":
-    # Carica le variabili d'ambiente
-    # Prima carica il file .env nella directory principale (condiviso)
-    load_dotenv()
-    # Poi sovrascrivi con le variabili specifiche del backend
-    load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=True)
+    # Load environment variables using centralized loader
+    EnvironmentLoader.load_environment()
     
-    # Leggi la configurazione con valori di default
-    host = os.getenv("BACKEND_HOST", "0.0.0.0")
-    port = int(os.getenv("BACKEND_PORT", "8000"))
+    # Get API configuration
+    api_config = EnvironmentLoader.get_api_config()
+    host = api_config['host']
+    port = api_config['port']
     
     print(f"Avvio backend su {host}:{port}")
     

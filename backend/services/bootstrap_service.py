@@ -1,5 +1,4 @@
 """Bootstrap service for one-time .env import to database."""
-import os
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from database import DBProvider

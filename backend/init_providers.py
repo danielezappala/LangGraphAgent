@@ -1,8 +1,10 @@
 """Initialize the database with default LLM providers."""
-import os
 from typing import List, Dict, Any
-from sqlalchemy.orm import Session
 from database import SessionLocal, DBProvider
+
+# Load environment variables using centralized loader
+from core.env_loader import EnvironmentLoader
+EnvironmentLoader.load_environment()
 
 def init_providers() -> None:
     """Initialize the database with default providers."""
@@ -15,14 +17,18 @@ def init_providers() -> None:
             print("Providers already exist in the database. Skipping initialization.")
             return
         
+        # Get configuration from centralized environment loader
+        openai_config = EnvironmentLoader.get_openai_config()
+        azure_config = EnvironmentLoader.get_azure_config()
+        
         # Default providers to create
         default_providers: List[Dict[str, Any]] = [
             {
                 "name": "OpenAI",
                 "provider_type": "openai",
                 "is_active": True,
-                "api_key": os.getenv("OPENAI_API_KEY", ""),
-                "model": "gpt-4o",
+                "api_key": openai_config['api_key'] or "",
+                "model": openai_config['model'],
                 "endpoint": None,
                 "deployment": None,
                 "api_version": None
@@ -31,11 +37,11 @@ def init_providers() -> None:
                 "name": "Azure OpenAI",
                 "provider_type": "azure",
                 "is_active": False,
-                "api_key": os.getenv("AZURE_OPENAI_API_KEY", ""),
-                "model": "gpt-4o",
-                "endpoint": os.getenv("AZURE_OPENAI_ENDPOINT", ""),
-                "deployment": os.getenv("AZURE_OPENAI_DEPLOYMENT", ""),
-                "api_version": os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+                "api_key": azure_config['api_key'] or "",
+                "model": azure_config['model'],
+                "endpoint": azure_config['endpoint'] or "",
+                "deployment": azure_config['deployment'] or "",
+                "api_version": azure_config['api_version']
             }
         ]
         

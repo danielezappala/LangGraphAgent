@@ -1,10 +1,8 @@
 """Configuration service for managing LLM provider configurations."""
-import os
 from typing import Optional, Dict, Any, List
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import DBProvider, get_db
-from config import get_llm_config, LLMConfig
 
 
 class ValidationResult(BaseModel):

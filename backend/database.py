@@ -1,13 +1,15 @@
 """Database models and session management for the application."""
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, Text, ForeignKey, UniqueConstraint, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, Text, DateTime
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, Session, scoped_session, relationship
-import os
+from sqlalchemy.orm import sessionmaker, Session, scoped_session
 from datetime import datetime
-from typing import Optional, List
 
-# Get the database URL from environment or use a default SQLite database
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./langgraph_agent.db")
+# Load environment variables using centralized loader
+from core.env_loader import EnvironmentLoader
+EnvironmentLoader.load_environment()
+
+# Get the database URL from centralized environment loader
+DATABASE_URL = EnvironmentLoader.get_database_url()
 
 # Create a SQLAlchemy engine
 engine = create_engine(
