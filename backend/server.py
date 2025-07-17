@@ -16,7 +16,7 @@ from database import engine, Base, get_db
 # Import dei moduli API
 from api import chat, ping, history
 from api.version_router import router as version_router
-from api.config import router as config_router
+
 from api.providers import router as providers_router
 
 # Import relativi standard per un'applicazione FastAPI
@@ -127,7 +127,7 @@ app.add_middleware(
 
 # Includi i router delle API
 app.include_router(version_router, prefix="/api/version", tags=["version"])
-app.include_router(config_router)
+
 app.include_router(providers_router, prefix="/api/providers", tags=["providers"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(ping.router, prefix="/api/ping", tags=["ping"])

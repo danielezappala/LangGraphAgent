@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { config } from '@/lib/config';
 
 export interface ProviderConfig {
@@ -47,17 +47,38 @@ export function useProviderStatus(): UseProviderStatusReturn {
     configurationSource: 'database'
   });
 
-  const fetchProviderStatus = useCallback(async () => {
+  // Cache and debouncing
+  const lastFetchTime = useRef<number>(0);
+  const fetchTimeoutRef = useRef<NodeJS.Timeout>();
+  const CACHE_DURATION = 30000; // 30 seconds cache
+  const DEBOUNCE_DELAY = 500; // 500ms debounce
+
+  const fetchProviderStatus = useCallback(async (forceRefresh = false) => {
+    // Check cache unless force refresh
+    const now = Date.now();
+    if (!forceRefresh && (now - lastFetchTime.current) < CACHE_DURATION) {
+      return; // Use cached data
+    }
+
     try {
       setStatus(prev => ({ ...prev, isLoading: true, error: undefined }));
 
       const baseUrl = config.apiBaseUrl;
       
-      // Fetch all data in parallel
+      // Fetch all data in parallel with timeout
+      const fetchWithTimeout = (url: string, options?: RequestInit) => {
+        return Promise.race([
+          fetch(url, options),
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Request timeout')), 10000)
+          )
+        ]);
+      };
+
       const [statusRes, activeRes, listRes] = await Promise.all([
-        fetch(`${baseUrl}/api/providers/status`),
-        fetch(`${baseUrl}/api/providers/active`).catch(() => null), // Active provider might not exist
-        fetch(`${baseUrl}/api/providers/list`)
+        fetchWithTimeout(`${baseUrl}/api/providers/status`),
+        fetchWithTimeout(`${baseUrl}/api/providers/active`).catch(() => null), // Active provider might not exist
+        fetchWithTimeout(`${baseUrl}/api/providers/list`)
       ]);
 
       if (!statusRes.ok || !listRes.ok) {
@@ -67,6 +88,9 @@ export function useProviderStatus(): UseProviderStatusReturn {
       const statusData = await statusRes.json();
       const listData = await listRes.json();
       const activeData = activeRes?.ok ? await activeRes.json() : null;
+
+      // Update cache timestamp
+      lastFetchTime.current = now;
 
       setStatus({
         hasActiveProvider: statusData.has_active_provider,
@@ -162,12 +186,30 @@ export function useProviderStatus(): UseProviderStatusReturn {
   }, [fetchProviderStatus]);
 
   const refreshStatus = useCallback(async () => {
-    await fetchProviderStatus();
+    await fetchProviderStatus(true); // Force refresh
+  }, [fetchProviderStatus]);
+
+  // Debounced fetch function
+  const debouncedFetch = useCallback((forceRefresh = false) => {
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
+    }
+    
+    fetchTimeoutRef.current = setTimeout(() => {
+      fetchProviderStatus(forceRefresh);
+    }, DEBOUNCE_DELAY);
   }, [fetchProviderStatus]);
 
   // Initial fetch
   useEffect(() => {
     fetchProviderStatus();
+    
+    // Cleanup timeout on unmount
+    return () => {
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+      }
+    };
   }, [fetchProviderStatus]);
 
   return {

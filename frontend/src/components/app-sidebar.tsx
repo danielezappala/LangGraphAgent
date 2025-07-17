@@ -4,7 +4,7 @@ import { Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, S
 import { AgentsMenu } from "@/components/agents-menu";
 import type { Message } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { ConversationHistory } from "./conversation-history-debug";
+import { ConversationHistory } from "./conversation-history-consolidated";
 import { MessageSquare } from "lucide-react";
 import Link from "next/link";
 

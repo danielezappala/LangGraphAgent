@@ -4,12 +4,11 @@ import { AppSidebar } from '@/components/app-sidebar';
 import { ChatInterface } from '@/components/chat-interface';
 import { TopNav } from '@/components/top-nav';
 import { SidebarProvider, Sidebar, SidebarInset } from '@/components/ui/sidebar';
-import { useState, useEffect, Dispatch, SetStateAction } from 'react';
+import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { v4 as uuidv4 } from 'uuid';
 import { Message, Conversation } from "@/lib/types";
-import { ProviderAlert } from "@/components/provider-alert";
-import { ProviderStatusIndicator } from "@/components/provider-status-indicator";
+import { ProviderStatusDisplay } from "@/components/provider-status-display";
 
 export default function Home() {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -18,7 +17,7 @@ export default function Home() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const [emptyConversationId, setEmptyConversationId] = useState<string | null>(null);
+
   const [selectedAgent, setSelectedAgent] = useState<string>('default_agent'); // Aggiunto stato per l'agente
   const { toast } = useToast();
 
@@ -93,11 +92,7 @@ export default function Home() {
             return baseMessage;
           });
 
-        if (!data?.conversation || transformedMsgs.length === 0) {
-          setEmptyConversationId(selectedConversationId);
-        } else {
-          setEmptyConversationId(null);
-        }
+
         console.log('Set messages in page.tsx (transformed):', transformedMsgs);
         setMessages(transformedMsgs);
         // data.thread_id è più corretto se disponibile, altrimenti selectedConversationId
@@ -119,7 +114,6 @@ export default function Home() {
     setSelectedConversationId(null); // Deseleziona la conversazione per rimuovere l'evidenziazione
     setMessages([]); // Pulisci i messaggi visualizzati
     setThreadId(uuidv4()); // Imposta un nuovo ID univoco per la nuova sessione di chat
-    setEmptyConversationId(null);
   };
 
   const handleDeleteConversation = async (thread_id: string) => {
@@ -174,16 +168,15 @@ export default function Home() {
         throw new Error(errorMessage);
       }
 
-      // Update the conversations list by filtering out the deleted one
-      const updatedConversations = conversations.filter((c: Conversation) => c.thread_id !== thread_id);
-      setConversations(updatedConversations);
-
       // If the deleted conversation was the selected one, clear the chat
       if (selectedConversationId === thread_id) {
         setSelectedConversationId(null);
         setMessages([]);
         setThreadId(uuidv4());
       }
+
+      // Reload conversations from server to ensure consistency
+      await fetchConversations();
 
       toast({
         title: 'Successo',
@@ -214,11 +207,8 @@ export default function Home() {
         <SidebarInset>
           <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-6 h-screen">
             <TopNav />
-            {/* Provider Status Indicator */}
-            <ProviderStatusIndicator />
-
-            {/* Provider Alert (only shows if there are issues) */}
-            <ProviderAlert />
+            {/* Provider Status Display (unified component) */}
+            <ProviderStatusDisplay mode="full" />
             <ChatInterface
               messages={messages}
               setMessages={setMessages}

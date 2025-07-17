@@ -34,9 +34,7 @@ class ProviderConfigResponse(ProviderConfigBase):
     class Config:
         orm_mode = True
 
-def get_active_provider_config(db: Session) -> Optional[DBProvider]:
-    """Get the currently active provider configuration."""
-    return db.query(DBProvider).filter(DBProvider.is_active == True).first()
+
 
 @router.get("/active")
 async def get_active_provider(db: Session = Depends(get_db)):
@@ -94,13 +92,13 @@ async def add_provider(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-@router.post("/switch/{provider_id}")
-async def switch_provider(
+@router.put("/{provider_id}")
+async def update_provider(
     provider_id: int,
     config: ProviderConfigCreate,
     db: Session = Depends(get_db)
 ):
-    """Switch to and update a provider configuration."""
+    """Update a provider configuration."""
     try:
         provider_service = get_provider_service(db)
         
@@ -225,21 +223,4 @@ async def get_provider_status(db: Session = Depends(get_db)):
 
 
 
-def update_environment_vars(provider: DBProvider):
-    """Update environment variables based on provider configuration."""
-    os.environ["LLM_PROVIDER"] = provider.provider_type
-    
-    if provider.provider_type == "openai":
-        os.environ["OPENAI_API_KEY"] = provider.api_key
-        if provider.model:
-            os.environ["OPENAI_MODEL"] = provider.model
-    elif provider.provider_type == "azure":
-        os.environ["AZURE_OPENAI_API_KEY"] = provider.api_key
-        if provider.endpoint:
-            os.environ["AZURE_OPENAI_ENDPOINT"] = provider.endpoint
-        if provider.deployment:
-            os.environ["AZURE_OPENAI_DEPLOYMENT"] = provider.deployment
-        if provider.model:
-            os.environ["AZURE_OPENAI_MODEL"] = provider.model
-        if provider.api_version:
-            os.environ["AZURE_OPENAI_API_VERSION"] = provider.api_version
+

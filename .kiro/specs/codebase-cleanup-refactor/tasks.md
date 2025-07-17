@@ -79,26 +79,26 @@
 
 ## Phase 3: API Consolidation (Medium Risk)
 
-- [-] 3. Remove duplicate API endpoints and consolidate provider APIs
+- [x] 3. Remove duplicate API endpoints and consolidate provider APIs
   - Remove backend/api/config.py entirely
   - Consolidate all provider functionality in backend/api/providers.py
   - Update API routing in server.py
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 3.1 Remove legacy config API endpoints
+- [x] 3.1 Remove legacy config API endpoints
   - Delete backend/api/config.py file
   - Remove config router import and inclusion from server.py
   - Verify no frontend components are calling /api/config endpoints
   - _Requirements: 4.2, 4.4_
 
-- [ ] 3.2 Consolidate provider API endpoints
+- [x] 3.2 Consolidate provider API endpoints
   - Ensure all provider operations are available through /api/providers
   - Remove any duplicate endpoint logic
   - Standardize response formats across all provider endpoints
   - Add comprehensive error handling to consolidated endpoints
   - _Requirements: 4.1, 4.3, 4.5_
 
-- [ ] 3.3 Update API documentation and testing
+- [x] 3.3 Update API documentation and testing
   - Update API documentation to reflect consolidated endpoints
   - Remove references to deleted /api/config endpoints
   - Test all provider API endpoints for functionality
@@ -107,34 +107,34 @@
 
 ## Phase 4: Frontend Consolidation (Low Risk)
 
-- [ ] 4. Merge redundant React components and clean up dependencies
+- [x] 4. Merge redundant React components and clean up dependencies
   - Consolidate provider status components into unified component
   - Merge conversation history components
   - Remove unused frontend dependencies
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 8.1, 8.2, 8.3, 8.4, 8.5_
 
-- [ ] 4.1 Create unified provider status component
+- [x] 4.1 Create unified provider status component
   - Create new ProviderStatusDisplay component that handles indicator, alert, and full modes
   - Migrate functionality from provider-status-indicator.tsx and provider-alert.tsx
   - Update all components that use provider status to use unified component
   - Remove old provider-status-indicator.tsx and provider-alert.tsx files
   - _Requirements: 5.1, 5.4, 5.5_
 
-- [ ] 4.2 Consolidate conversation history components
+- [x] 4.2 Consolidate conversation history components
   - Merge conversation-history.tsx and conversation-history-debug.tsx into single component
   - Add debugMode prop to control debug functionality
   - Update components that use conversation history to use consolidated component
   - Remove duplicate conversation-history-debug.tsx file
   - _Requirements: 5.2, 5.4, 5.5_
 
-- [ ] 4.3 Clean up provider status hook
+- [x] 4.3 Clean up provider status hook
   - Consolidate all provider-related state management in useProviderStatus hook
   - Remove duplicate logic across components
   - Add proper error handling and caching to the hook
   - Update all components to use the enhanced hook
   - _Requirements: 5.3, 5.4, 5.5_
 
-- [ ] 4.4 Remove unused frontend dependencies
+- [x] 4.4 Remove unused frontend dependencies
   - Remove @genkit-ai/googleai and @genkit-ai/next packages
   - Remove firebase package
   - Remove embla-carousel-react and recharts packages
@@ -142,7 +142,7 @@
   - Update package-lock.json and verify build still works
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
 
-- [ ] 4.5 Clean up unused imports in frontend components
+- [x] 4.5 Clean up unused imports in frontend components
   - Remove unused React hooks imports (useState, useEffect where not used)
   - Remove unused Lucide icon imports
   - Remove unused utility imports
