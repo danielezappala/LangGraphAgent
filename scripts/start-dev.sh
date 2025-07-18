@@ -32,7 +32,7 @@ export PYTHONPATH=$(pwd)
 
 # Start the backend server in the background
 echo "Starting backend server on http://localhost:8000..."
-python -m uvicorn backend.core.app:app --host 0.0.0.0 --port 8000 --reload &
+python -m uvicorn backend.app:app --host 0.0.0.0 --port 8000 --reload &
 BACKEND_PID=$!
 
 # Start the frontend server in the foreground

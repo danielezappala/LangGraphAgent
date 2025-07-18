@@ -22,8 +22,8 @@ backend/
 ├── api/                       # Endpoint FastAPI
 │   ├── providers.py           # Gestione provider LLM
 │   └── history.py             # Cronologia chat
+├── app.py                       # Applicazione FastAPI principale
 ├── core/                      # Logica di business principale
-│   ├── app.py                 # Applicazione FastAPI principale
 │   ├── env_loader.py          # Configurazione ambiente
 │   ├── database/              # Core database
 │   │   └── unified_database.py # Implementazione database unificato
@@ -74,7 +74,11 @@ Il frontend è un'applicazione React che fornisce l'interfaccia utente per la ch
 
 3.  **Avvia il server backend**: Dalla root del progetto, esegui:
     ```bash
-    uvicorn backend.server:app --reload
+    python backend/run.py
+    ```
+    Oppure direttamente con uvicorn:
+    ```bash
+    uvicorn backend.app:app --reload
     ```
     Il server sarà in ascolto su `http://127.0.0.1:8000`.
 

@@ -75,7 +75,7 @@ def test_server_startup():
     print("\n🚀 Testing server startup...")
     
     try:
-        from core.app import app
+        from app import app
         print("✅ Server module import successful")
         return True
         

@@ -18,7 +18,7 @@ if __name__ == "__main__":
     print(f"Avvio backend su {host}:{port}")
     
     uvicorn.run(
-        "core.app:app",
+        "app:app",
         host=host,
         port=port,
         reload=True,
