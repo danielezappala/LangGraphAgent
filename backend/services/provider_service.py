@@ -3,7 +3,7 @@ from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from unified_database import DBProvider
+from core.database.unified_database import DBProvider
 import requests
 import time
 from datetime import datetime

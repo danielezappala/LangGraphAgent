@@ -7,7 +7,7 @@ import os
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from unified_database import get_unified_db, UnifiedAsyncSqliteSaver
+from core.database.unified_database import get_unified_db, UnifiedAsyncSqliteSaver
 import pathlib
 
 # Load environment variables using centralized loader

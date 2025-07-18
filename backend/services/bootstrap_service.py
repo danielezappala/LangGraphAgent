@@ -1,7 +1,7 @@
 """Bootstrap service for one-time .env import to database."""
 from typing import Optional, Dict, Any, List
 from sqlalchemy.orm import Session
-from unified_database import DBProvider
+from core.database.unified_database import DBProvider
 
 from core.env_loader import EnvironmentLoader
 

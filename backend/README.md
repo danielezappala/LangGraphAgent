@@ -14,12 +14,33 @@ Il backend è un'applicazione FastAPI che orchestra la logica dell'agente.
 
 ```
 backend/
-├── server.py               # Entry point del server FastAPI, gestisce il ciclo di vita e l'endpoint /chat.
-├── graph_definition.py     # Cuore dell'agente: definisce lo stato, i nodi e la struttura del grafo LangGraph.
-├── tools.py                # Definisce i tool statici a disposizione dell'agente (es. Tavily Search).
-├── mcp_config.json         # Configurazione per i server MCP (es. Notion) per caricare tool dinamici.
-├── chatbot_memory.sqlite   # Database SQLite per la persistenza della cronologia delle conversazioni.
-└── .env                    # File per le variabili d'ambiente (API keys).
+├── run.py                       # Entry point per avvio server
+├── database.py                  # Layer di compatibilità database
+├── version.py                   # Informazioni versione
+├── mcp_config.json             # Configurazione server MCP
+├── requirements.txt            # Dipendenze Python
+├── api/                       # Endpoint FastAPI
+│   ├── providers.py           # Gestione provider LLM
+│   └── history.py             # Cronologia chat
+├── core/                      # Logica di business principale
+│   ├── app.py                 # Applicazione FastAPI principale
+│   ├── env_loader.py          # Configurazione ambiente
+│   ├── database/              # Core database
+│   │   └── unified_database.py # Implementazione database unificato
+│   ├── langgraph/             # Workflow LangGraph
+│   │   └── graph_definition.py # Definizione grafo agente
+│   └── tools/                 # Tool LangChain
+│       └── tools.py           # Implementazione tool
+├── services/                  # Servizi business
+│   ├── bootstrap_service.py   # Bootstrap applicazione
+│   └── provider_service.py    # Gestione provider
+├── tests/                     # Suite di test
+│   ├── unit/                  # Test unitari
+│   ├── integration/           # Test integrazione
+│   └── performance/           # Test performance
+├── utils/                     # Funzioni utility
+└── data/                      # File database
+    └── unified_app.sqlite     # Database principale
 ```
 
 ### Frontend

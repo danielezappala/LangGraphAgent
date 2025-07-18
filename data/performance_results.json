@@ -1,0 +1,49 @@
+{
+  "timestamp": 1752758599.88621,
+  "tests": {
+    "api_response_times": {
+      "Provider Status": {
+        "avg_ms": 1.88,
+        "min_ms": 1.38,
+        "max_ms": 2.16
+      },
+      "Provider List": {
+        "avg_ms": 1.59,
+        "min_ms": 1.25,
+        "max_ms": 2.21
+      },
+      "Active Provider": {
+        "avg_ms": 1.9,
+        "min_ms": 1.31,
+        "max_ms": 2.78
+      },
+      "History List": {
+        "avg_ms": 4.28,
+        "min_ms": 3.27,
+        "max_ms": 6.13
+      },
+      "Version Info": {
+        "avg_ms": 0.79,
+        "min_ms": 0.73,
+        "max_ms": 0.89
+      }
+    },
+    "memory_usage": {
+      "peak_mb": 44.17,
+      "status": "\u2705 Excellent"
+    },
+    "bundle_size": {
+      "total_mb": 96.85,
+      "js_mb": 22.94,
+      "css_mb": 0.05,
+      "status": "\u274c Large"
+    },
+    "database_performance": {
+      "provider_query_ms": 1.84,
+      "active_query_ms": 0.8,
+      "count_query_ms": 0.19,
+      "avg_ms": 0.94,
+      "status": "\u2705 Excellent"
+    }
+  }
+}

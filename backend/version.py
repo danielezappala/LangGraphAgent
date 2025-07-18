@@ -5,7 +5,7 @@
 # - MINOR: Added functionality in a backward-compatible manner
 # - PATCH: Backward-compatible bug fixes
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 
 # Version information as a dictionary for easier programmatic access
 version_info = {

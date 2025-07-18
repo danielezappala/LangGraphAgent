@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "notion": {
+      "command": "uvx",
+      "args": ["notion-mcp-server"],
+      "env": {
+        "NOTION_API_KEY": "ntn_v84203366274KyQZY1lZYF5XQCuD8qAOEovm8Y8EqnDcy2"
+      },
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}
