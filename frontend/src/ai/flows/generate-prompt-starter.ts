@@ -2,14 +2,10 @@
 
 /**
  * @fileOverview Flow to generate a prompt starter for new users.
- *
- * - generatePromptStarter - A function that generates a prompt starter.
- * - GeneratePromptStarterInput - The input type for the generatePromptStarter function (empty object).
- * - GeneratePromptStarterOutput - The return type for the generatePromptStarter function.
+ * AI functionality is disabled - no frontend LLM available.
  */
 
-// import {ai} from '@/ai/genkit'; // Genkit disabilitato
-import {z} from 'genkit';
+import { z } from 'zod';
 
 const GeneratePromptStarterInputSchema = z.object({});
 export type GeneratePromptStarterInput = z.infer<typeof GeneratePromptStarterInputSchema>;
@@ -20,7 +16,5 @@ const GeneratePromptStarterOutputSchema = z.object({
 export type GeneratePromptStarterOutput = z.infer<typeof GeneratePromptStarterOutputSchema>;
 
 export async function generatePromptStarter(input: GeneratePromptStarterInput): Promise<GeneratePromptStarterOutput> {
-  throw new Error('Funzionalità AI lato frontend disabilitata: nessun modello disponibile.');
+  throw new Error('AI functionality disabled: no frontend LLM available.');
 }
-
-// Tutta la logica Genkit/flow è stata rimossa: questo modulo ora solo stubba la funzione richiesta.

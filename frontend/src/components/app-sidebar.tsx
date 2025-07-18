@@ -1,19 +1,11 @@
 "use client";
 
-import { Sidebar, SidebarHeader, SidebarContent, SidebarMenu, SidebarMenuItem, SidebarMenuButton } from "@/components/ui/sidebar";
-import { AgentsMenu } from "@/components/agents-menu";
-import type { Message } from "@/lib/types";
+import { Sidebar, SidebarHeader, SidebarContent } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { ConversationHistory } from "./conversation-history-consolidated";
 import { MessageSquare } from "lucide-react";
-import Link from "next/link";
 
-// Definizione del tipo Conversation, allineato con page.tsx e il backend
-interface Conversation {
-  thread_id: string;
-  last_message_ts: string;
-  preview: string;
-}
+import { Conversation } from "@/lib/types";
 
 interface AppSidebarProps {
   conversations: Conversation[];

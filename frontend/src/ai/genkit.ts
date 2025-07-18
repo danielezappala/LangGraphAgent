@@ -1,5 +1,5 @@
-// Genkit disabilitato: nessuna AI disponibile lato frontend
+// AI functionality disabled: no frontend LLM available
 export const ai = {
-  generate: () => { throw new Error('Genkit is disabled: no frontend LLM available.'); },
-  // puoi aggiungere altri stub se necessario
+  generate: () => { throw new Error('AI is disabled: no frontend LLM available.'); },
+  // Additional stubs can be added if needed
 };

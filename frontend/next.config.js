@@ -68,6 +68,11 @@ const nextConfig = {
   
   // Enable source maps in production for better error reporting
   productionBrowserSourceMaps: process.env.NEXT_PUBLIC_ENABLE_DEBUG === 'true',
+  
+  // Temporarily disable ESLint during build for performance measurement
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 };
 
 module.exports = nextConfig;

@@ -1,12 +1,12 @@
 import { Message } from "./types";
 
-export function convertBackendMessage(backendMsg: any): Message {
+export function convertBackendMessage(backendMsg: any): Message | null {
   if (!backendMsg.content || backendMsg.content.trim() === '') {
     return null;
   }
 
-  const baseMessage = {
-    role: backendMsg.type === 'human' ? 'user' : 'assistant',
+  const baseMessage: Message = {
+    role: backendMsg.type === 'human' ? 'user' as const : 'assistant' as const,
     content: backendMsg.content,
     id: backendMsg.id || crypto.randomUUID()
   };

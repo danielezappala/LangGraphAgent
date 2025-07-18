@@ -11,7 +11,6 @@ const statusColors = {
   error: '#EF4444',    // red-500
   checking: '#F59E0B', // yellow-500
 };
-import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Info, Circle } from 'lucide-react';
 

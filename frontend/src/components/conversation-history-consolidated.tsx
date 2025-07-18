@@ -1,8 +1,7 @@
 "use client";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { Button } from "@/components/ui/button";
 import { Loader2, Trash2, History } from "lucide-react";
-import { Conversation, Message } from "@/lib/types";
+import { Conversation } from "@/lib/types";
 
 interface ConversationHistoryProps {
   conversations: Conversation[];

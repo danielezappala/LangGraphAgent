@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect, FormEvent } from 'react';
-import { AgentsMenu } from '@/components/agents-menu';
 import { chatWithAgent } from '@/app/api/agents';
 import { generateId } from '@/lib/utils';
 import { Button } from "@/components/ui/button";
@@ -9,10 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Send, LoaderCircle } from "lucide-react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { RediLogo } from '@/components/icons';
-import { getAiResponse } from '@/app/actions';
 import { ChatMessage } from '@/components/chat-message';
 import { Message } from "@/lib/types";
-import { generatePromptStarter } from '@/ai/flows/generate-prompt-starter';
 
 const PromptSuggestion = ({ prompt, onSelect }: { prompt: string, onSelect: (prompt: string) => void }) => {
     return (
