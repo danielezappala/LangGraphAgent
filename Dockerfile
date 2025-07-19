@@ -19,6 +19,7 @@ COPY backend/ ./backend/
 COPY scripts/ ./scripts/
 
 # Backend-only deployment - no frontend needed
+# Updated: $(date)
 
 # Create data directory for SQLite
 RUN mkdir -p /app/backend/data
