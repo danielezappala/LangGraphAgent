@@ -4,6 +4,7 @@ FROM python:3.11-slim
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
@@ -17,8 +18,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./backend/
 COPY scripts/ ./scripts/
 
-# Copy frontend (if exists)
-COPY frontend/ ./frontend/ 2>/dev/null || echo "No frontend directory found"
+# Backend-only deployment - no frontend needed
 
 # Create data directory for SQLite
 RUN mkdir -p /app/backend/data
