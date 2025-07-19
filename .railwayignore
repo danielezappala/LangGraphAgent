@@ -1,0 +1,10 @@
+# Ignore frontend for backend-only deployment
+frontend/
+node_modules/
+*.log
+.DS_Store
+__pycache__/
+.pytest_cache/
+venv/
+.vscode/
+.kiro/
