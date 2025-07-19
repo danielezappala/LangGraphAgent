@@ -1,15 +1,5 @@
-# Multi-stage build for production
-FROM node:18-alpine AS frontend-builder
-
-# Build frontend
-WORKDIR /app/frontend
-COPY frontend/package*.json ./
-RUN npm ci --only=production
-COPY frontend/ ./
-RUN npm run build
-
-# Python backend
-FROM python:3.11-slim AS backend
+# Python backend only
+FROM python:3.11-slim
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -27,8 +17,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./backend/
 COPY scripts/ ./scripts/
 
-# Copy built frontend
-COPY --from=frontend-builder /app/frontend/out ./frontend/out
+# Copy frontend (if exists)
+COPY frontend/ ./frontend/ 2>/dev/null || echo "No frontend directory found"
 
 # Create data directory for SQLite
 RUN mkdir -p /app/backend/data
